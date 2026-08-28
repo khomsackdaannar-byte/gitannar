@@ -1,0 +1,15 @@
+:root {
+  --color-primary: #009688;
+  --color-primary-dark: #00695c;
+  --color-on-primary: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Noto Sans Lao", "Roboto", sans-serif;
+}

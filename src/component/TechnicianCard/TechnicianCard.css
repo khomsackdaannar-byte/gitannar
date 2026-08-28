@@ -1,0 +1,87 @@
+.tech-list__empty {
+  text-align: center;
+  color: #999;
+  padding: 30px 0;
+}
+
+.tech-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #eaf0f0;
+  border: 1px solid #ece4cf;
+  border-radius: 18px;
+  padding: 16px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.tech-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(18, 60, 56, 0.08);
+}
+
+.tech-card__avatar {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #161e1d;
+  color: #1f9c90;
+}
+
+.tech-card__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ສີ icon ຕາມໝວດ */
+.tech-card__avatar--electric      { background: #fdecc8; color: #c98a12; }
+.tech-card__avatar--plumbing      { background: #d7e9fb; color: #2e6fb0; }
+.tech-card__avatar--beauty        { background: #fbe1ec; color: #c34e82; }
+.tech-card__avatar--car_repair    { background: #e3e2fb; color: #5b53c9; }
+.tech-card__avatar--phone_repair  { background: #dbf3e3; color: #279653; }
+
+.tech-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.tech-card__name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1f2a28;
+  margin-bottom: 2px;
+}
+
+.tech-card__type {
+  font-size: 13px;
+  color: #0e1010;
+  margin-bottom: 2px;
+}
+
+.tech-card__area {
+  font-size: 12px;
+  color: #0e0d0d;
+}
+
+.tech-card__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  color: #1f9c90;
+}
+
+.tech-card__rating {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #d99a1d;
+}

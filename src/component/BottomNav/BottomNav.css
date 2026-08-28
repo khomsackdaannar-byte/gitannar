@@ -1,0 +1,30 @@
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-around;
+  background: #fff;
+  padding: 10px 4px calc(10px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -6px 20px rgba(61, 137, 131, 0.12);
+  z-index: 30;
+}
+
+.bottom-nav__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  color: #9aa5a3;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.bottom-nav__item--active {
+  color: #3d8983;
+  font-weight: 700;
+}
