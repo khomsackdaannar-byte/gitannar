@@ -54,4 +54,5 @@ export const techList: Technician[] = [
   { name: "ນາງ ແສງດາລາ ພົງສະຫວັນ", type: "ຊ່າງສ້ອມແປງໂທລະສັບ", category: TechCategory.phoneRepair, phone: "02088990012", area: "ເມືອງໄຊເສດຖາ", hometown: "ບ້ານໜອງບອນ ເມືອງ ໄຊເສດຖາ ນະຄອນຫລວງວຽງຈັນ", birthDate: "14/02/1999", age: "28", rating: 4.4, icon: "phone_android" },
   { name: "ນາງ ລຸ້ງຕາວັນ ຈັນທະວົງສາ", type: "ຊ່າງສ້ອມແປງໂທລະສັບ", category: TechCategory.phoneRepair, phone: "02088990013", area: "ເມືອງຫາດຊາຍຟອງ", hometown: "ບ້ານຊຽງຄວນ ເມືອງຫາດຊາຍຟອງ ນະຄອນຫລວງວຽງຈັນ", birthDate: "05/12/2005", age: "21", rating: 4.8, icon: "phone_android", image: "/assets/images/loung.jpg" },
   { name: "ທ້າວ ຄຳພອນ", type: "ຊ່າງສ້ອມແປງໂທລະສັບ", category: TechCategory.phoneRepair, phone: "02088990014", area: "ເມືອງສັງທອງ", hometown: "ບ້ານຫ້ວຍສະນອດ ເມືອງສັງທອງ ນະຄອນຫລວງວຽງຈັນ", birthDate: "02/09/2001", age: "25", rating: 4.6, icon: "phone_android" },
+   { name: "ທ້າວ ຄຳພອນ ຄົມສັກດາ", type: "ຊ່າງສ້ອມແປງໂທລະສັບ", category: TechCategory.phoneRepair, phone: "02088990014", area: "ເມືອງສັງທອງ", hometown: "ບ້ານຫ້ວຍສະນອດ ເມືອງສັງທອງ ນະຄອນຫລວງວຽງຈັນ", birthDate: "02/09/2001", age: "25", rating: 4.6, icon: "phone_android" },
 ];
