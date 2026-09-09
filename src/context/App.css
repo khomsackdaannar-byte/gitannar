@@ -13,3 +13,19 @@
 body {
   font-family: "Noto Sans Lao", "Roboto", sans-serif;
 }
+/* ຈຳກັດຄວາມກວ້າງແອັບໃຫ້ຄ້າຍໜ້າຈໍມືຖື ເວລາເປີດຢູ່ desktop */
+body {
+  background: #ebebeb;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+#root {
+  width: 100%;
+  max-width: 480px;
+  min-height: 100vh;
+  background: #ffffff;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.12);
+  position: relative;
+}

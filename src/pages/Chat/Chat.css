@@ -45,7 +45,7 @@
 
 .chat-bubble {
   max-width: 70%;
-  background: #10474b;
+  background: #0a1f20;
   color: #efeaea;
   padding: 10px 14px;
   border-radius: 14px;
@@ -54,7 +54,7 @@
 }
 
 .chat-bubble--me {
-  background: var(--color-primary, #10474b);
+  background: var(--color-primary, #0b282b);
   color: #fff;
 }
 
@@ -81,7 +81,7 @@
   height: 40px;
   border-radius: 50%;
   border: none;
-  background: var(--color-primary, #10575f);
+  background: var(--color-primary, #1a4e53);
   display: flex;
   align-items: center;
   justify-content: center;

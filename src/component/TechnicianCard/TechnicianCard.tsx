@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Star, Phone } from "lucide-react";
-import { getTechIcon } from "../../Utils/Icons";
+import { getTechIcon } from "../../Utils/Icon";
 import type { Technician } from "../../Types/Technician";
 import "./TechnicianCard.css";
 

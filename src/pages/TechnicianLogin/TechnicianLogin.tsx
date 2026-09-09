@@ -1,16 +1,25 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { HardHat } from "lucide-react";
 import { techList } from "../../Types/Technician";
 import "./TechnicianLogin.css";
 
-// ທຽບເທົ່າ TechnicianLoginScreen ໃນ Flutter (technician_login_screen.dart)
 function TechnicianLogin() {
   const navigate = useNavigate();
   const [phone, setPhone] = useState("");
   const [errorText, setErrorText] = useState<string | null>(null);
 
-  // ທຽບເທົ່າ _handleLogin()
+  // ★ ເພີ່ມ: ຕອນເປີດໜ້ານີ້ ໃຫ້ເຊັກກ່ອນວ່າເຄີຍ login ໄວ້ບໍ
+  useEffect(() => {
+    const savedPhone = localStorage.getItem("tech_logged_in_phone");
+    if (savedPhone) {
+      const tech = techList.find((t) => t.phone === savedPhone);
+      if (tech) {
+        navigate(`/technician-home/${encodeURIComponent(tech.phone)}`, { replace: true });
+      }
+    }
+  }, []);
+
   const handleLogin = () => {
     const value = phone.trim();
     const tech = techList.find((t) => t.phone === value);
@@ -18,7 +27,13 @@ function TechnicianLogin() {
       setErrorText("ບໍ່ພົບເບີໂທນີ້ໃນລະບົບຊ່າງ");
       return;
     }
+    // ★ ເພີ່ມ: ຈື່ເບີໂທໄວ້ໃນເຄື່ອງ ຫລັງ login ສຳເລັດ
+    localStorage.setItem("tech_logged_in_phone", tech.phone);
     navigate(`/technician-home/${encodeURIComponent(tech.phone)}`, { replace: true });
+  };
+
+  const handleGoToRegister = () => {
+    navigate("/register-technician");
   };
 
   return (
@@ -48,6 +63,10 @@ function TechnicianLogin() {
 
         <button className="tech-login-submit" onClick={handleLogin}>
           ເຂົ້າສູ່ລະບົບ
+        </button>
+
+        <button className="tech-login-register" onClick={handleGoToRegister}>
+          ລົງທະບຽນ
         </button>
       </div>
     </div>

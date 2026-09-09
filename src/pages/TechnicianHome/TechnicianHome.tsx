@@ -271,7 +271,7 @@ function TechnicianHome() {
         </div>
       )}
 
-      {/* ===== ແທັບ: ຂໍ້ມູນຊ່າງ ===== */}
+      {/* ===== ຂໍ້ມູນຊ່າງ ===== */}
       {activeTab === "profile" && (
         <div className="tech-home-profile-tab">
           <div className="tech-home-profile-upload">

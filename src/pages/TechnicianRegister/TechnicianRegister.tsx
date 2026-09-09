@@ -20,10 +20,19 @@ const categoryOptions: { value: TechCategoryType; label: string; type: string; i
 
 function TechnicianRegister() {
   const [step, setStep] = useState<"info" | "otp">("info");
-  const [name, setName] = useState("");
+
+  // ຂໍ້ມູນສ່ວນຕົວ
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [category, setCategory] = useState<TechCategoryType>(TechCategory.electric);
   const [area, setArea] = useState("");
+  const [address, setAddress] = useState(""); // ທີ່ຢູ່ປັດຈຸບັນ
+
+  // ບັດປະຈຳຕົວ / ສຳມະໂນຄົວ (ບັງຄັບຕ້ອງແນບ)
+  const [idCardFile, setIdCardFile] = useState<File | null>(null);
+  const [idCardPreview, setIdCardPreview] = useState<string | null>(null);
+
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -38,10 +47,28 @@ function TechnicianRegister() {
     return () => clearTimeout(t);
   }, [countdown]);
 
+  const handleIdCardChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setIdCardFile(file);
+    setError("");
+
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => setIdCardPreview(reader.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setIdCardPreview(null);
+    }
+  };
+
   const requestOtp = async () => {
     setError("");
-    if (!name.trim()) {
+    if (!firstName.trim()) {
       setError("ກະລຸນາໃສ່ຊື່");
+      return;
+    }
+    if (!lastName.trim()) {
+      setError("ກະລຸນາໃສ່ນາມສະກຸນ");
       return;
     }
     if (!/^0\d{7,10}$/.test(phone)) {
@@ -52,6 +79,15 @@ function TechnicianRegister() {
       setError("ກະລຸນາໃສ່ພື້ນທີ່ບໍລິການ");
       return;
     }
+    if (!address.trim()) {
+      setError("ກະລຸນາໃສ່ທີ່ຢູ່ປັດຈຸບັນ");
+      return;
+    }
+    if (!idCardFile) {
+      setError("ກະລຸນາແນບຮູບບັດປະຈຳຕົວ ຫຼື ສຳມະໂນຄົວ");
+      return;
+    }
+
     setLoading(true);
     try {
       await sendPhoneOtp(phone);
@@ -85,27 +121,35 @@ function TechnicianRegister() {
 
       const user = auth.currentUser;
       const selected = categoryOptions.find((c) => c.value === category)!;
+      const fullName = `${firstName.trim()} ${lastName.trim()}`;
 
       if (user) {
-        await updateProfile(user, { displayName: name.trim() });
+        await updateProfile(user, { displayName: fullName });
 
         // ບັນທຶກຂໍ້ມູນຜູ້ໃຊ້ (ສຳລັບ auth/role)
         await setDoc(doc(db, "users", user.uid), {
           uid: user.uid,
-          name: name.trim(),
+          name: fullName,
           phone: phone.trim(),
           role: "technician",
           createdAt: new Date(),
         });
 
         // ບັນທຶກຂໍ້ມູນຊ່າງ (doc ID = ເບີໂທ, ໃຊ້ຄົ້ນຫາຢູ່ໜ້າ TechnicianHome/Home/Detail)
+        // ໝາຍເຫດ: idCardFile ຍັງບໍ່ໄດ້ອັບໂຫຼດຂຶ້ນ Firebase Storage,
+        // ຕອນນີ້ບັນທຶກແຕ່ຊື່ໄຟລ໌ໄວ້ກ່ອນ, ຄ່ອຍເພີ່ມການອັບໂຫຼດຮູບຈິງພາຍຫຼັງ
         await setDoc(doc(db, "technicians", phone.trim()), {
-          name: name.trim(),
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          name: fullName,
           phone: phone.trim(),
           category: selected.value,
           type: selected.type,
           icon: selected.icon,
           area: area.trim(),
+          address: address.trim(),
+          idCardFileName: idCardFile ? idCardFile.name : "",
+          idCardUrl: "", // TODO: ຈະໃສ່ URL ຫຼັງຈາກອັບໂຫຼດ Firebase Storage
           hometown: "",
           birthDate: "",
           age: "",
@@ -149,8 +193,19 @@ function TechnicianRegister() {
               <input
                 type="text"
                 placeholder="ໃສ່ຊື່ຂອງທ່ານ"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>ນາມສະກຸນ</label>
+              <input
+                type="text"
+                placeholder="ໃສ່ນາມສະກຸນຂອງທ່ານ"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
                 required
               />
             </div>
@@ -190,6 +245,34 @@ function TechnicianRegister() {
                 onChange={(e) => setArea(e.target.value)}
                 required
               />
+            </div>
+
+            <div className="form-group">
+              <label>ທີ່ຢູ່ປັດຈຸບັນ</label>
+              <input
+                type="text"
+                placeholder="ບ້ານ, ເມືອງ, ແຂວງ"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>ບັດປະຈຳຕົວ ຫຼື ສຳມະໂນຄົວ (ຮູບ)</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleIdCardChange}
+                required
+              />
+              {idCardPreview && (
+                <img
+                  src={idCardPreview}
+                  alt="ຕົວຢ່າງບັດປະຈຳຕົວ"
+                  style={{ marginTop: 8, maxWidth: "100%", borderRadius: 8 }}
+                />
+              )}
             </div>
 
             {error && <p className="form-error">{error}</p>}
@@ -251,5 +334,5 @@ function TechnicianRegister() {
     </div>
   );
 }
-
+ 
 export default TechnicianRegister;

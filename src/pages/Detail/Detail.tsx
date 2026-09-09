@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getTechIcon } from "../../Utils/Icons";
+import { getTechIcon } from "../../Utils/Icon";
 import {
   ArrowLeft,
   MapPin,

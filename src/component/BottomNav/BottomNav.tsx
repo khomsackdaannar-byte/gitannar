@@ -4,7 +4,7 @@ import "./BottomNav.css";
 
 const tabs = [
   { path: "/home", label: "ໜ້າຫຼັກ", icon: Home },
-  { path: "/bookings", label: "ການຈອງ", icon: Bookmark },
+  { path: "/bookings", label: "ແຊັດ", icon: Bookmark },
   { path: "/history", label: "ປະຫວັດ", icon: Clock },
   { path: "/profile", label: "ໂປຣໄຟລ໌", icon: User },
 ];
