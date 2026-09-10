@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, Zap, Wrench, Scissors, Car, Smartphone, ArrowLeft } from "lucide-react";
-import { TechCategory, TechCategoryType, techList } from "../../Types/Technician";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "../../firebase/Firebase";
+import { TechCategory, TechCategoryType, techList, type Technician } from "../../Types/Technician";
 import { TechnicianListView } from "../../component/TechnicianCard/TechnicianCard";
 import { useTechnicianPhotos } from "../../hooks/useTechnicianPhotos";
 import "./Home.css";
@@ -27,9 +29,53 @@ function Home() {
   const [searchText, setSearchText] = useState("");
   const photoMap = useTechnicianPhotos();
 
+  // ຊ່າງທີ່ລົງທະບຽນຜ່ານແອັບ (ບັນທຶກໄວ້ໃນ Firestore collection "technicians")
+  const [registeredTechs, setRegisteredTechs] = useState<Technician[]>([]);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "technicians"),
+      (snapshot) => {
+        const docs = snapshot.docs
+          .map((d) => {
+            const data = d.data();
+            return {
+              name: data.name ?? "",
+              type: data.type ?? "",
+              category: data.category ?? TechCategory.electric,
+              phone: data.phone ?? d.id,
+              area: data.area ?? "",
+              hometown: data.hometown ?? "",
+              birthDate: data.birthDate ?? "",
+              age: data.age ?? "",
+              rating: data.rating ?? 0,
+              icon: data.icon ?? "electrical_services",
+              image: data.image || undefined,
+            } as Technician;
+          })
+          // ຕັດຂໍ້ມູນທີ່ລົງທະບຽນບໍ່ຄົບ (ບໍ່ມີຊື່) ອອກ ບໍ່ໃຫ້ສະແດງບັດຫວ່າງໆ
+          .filter((t) => t.name.trim() !== "");
+        setRegisteredTechs(docs);
+      },
+      (err) => {
+        console.error("technicians snapshot error:", err.message);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  // ລວມລາຍຊື່ຄົງທີ່ (demo) ກັບຊ່າງທີ່ລົງທະບຽນຈິງ, ຕັດຊ້ຳກັນອອກໂດຍໃຊ້ເບີໂທເປັນຫຼັກ
+  // (ຂໍ້ມູນທີ່ບັນທຶກຈິງໃນ Firestore ຈະໃຊ້ແທນຂໍ້ມູນຄົງທີ່ ຖ້າເບີໂທຊ້ຳກັນ)
+  const allTechs = useMemo(() => {
+    const merged = new Map<string, Technician>();
+    for (const t of techList) merged.set(t.phone, t);
+    for (const t of registeredTechs) merged.set(t.phone, t);
+    return Array.from(merged.values());
+  }, [registeredTechs]);
+
   const filteredList = useMemo(() => {
     const search = searchText.toLowerCase();
-    return techList
+    return allTechs
       .filter((tech) => {
         const matchCategory = tech.category === activeTab;
         const matchSearch =
@@ -41,7 +87,7 @@ function Home() {
         ...tech,
         image: photoMap[tech.phone] || tech.image,
       }));
-  }, [activeTab, searchText, photoMap]);
+  }, [allTechs, activeTab, searchText, photoMap]);
 
   const activeCategory = categories.find((c) => c.category === activeTab);
 

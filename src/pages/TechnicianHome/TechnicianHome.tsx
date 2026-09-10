@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { collection, doc, onSnapshot, orderBy, query, setDoc, where } from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot, orderBy, query, setDoc, where } from "firebase/firestore";
 import { LogOut, User, Camera, X, MessageCircle, UserCircle, MapPin, Star, Phone } from "lucide-react";
 import { db } from "../../firebase/Firebase";
-import { techList } from "../../Types/Technician";
+import { techList, type Technician } from "../../Types/Technician";
 import { useAuth } from "../../context/Authcontext";
 import "./technicianhome.css";
 
@@ -85,7 +85,65 @@ function TechnicianHome() {
   const [reviewsLoading, setReviewsLoading] = useState(true);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
 
-  const tech = techList.find((t) => t.phone === decodeURIComponent(phone ?? ""));
+  const decodedPhone = decodeURIComponent(phone ?? "");
+  const staticTech = techList.find((t) => t.phone === decodedPhone);
+
+  // ===== ຂໍ້ມູນຊ່າງ (ຫາໃນ techList ຄົງທີ່ກ່ອນ, ຖ້າບໍ່ພົບໃຫ້ໄປອ່ານ Firestore) =====
+  const [tech, setTech] = useState<Technician | null>(staticTech ?? null);
+  const [techLoading, setTechLoading] = useState(!staticTech);
+
+  useEffect(() => {
+    if (staticTech) {
+      setTech(staticTech);
+      setTechLoading(false);
+      return;
+    }
+    if (!decodedPhone) {
+      setTech(null);
+      setTechLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setTechLoading(true);
+
+    const loadTech = async () => {
+      try {
+        const snap = await getDoc(doc(db, "technicians", decodedPhone));
+        if (cancelled) return;
+
+        if (snap.exists()) {
+          const data = snap.data();
+          setTech({
+            name: data.name ?? "",
+            type: data.type ?? "",
+            category: data.category ?? "electric",
+            phone: data.phone ?? decodedPhone,
+            area: data.area ?? "",
+            hometown: data.hometown ?? "",
+            birthDate: data.birthDate ?? "",
+            age: data.age ?? "",
+            rating: data.rating ?? 0,
+            icon: data.icon ?? "electrical_services",
+            image: data.image || undefined,
+          });
+        } else {
+          setTech(null);
+        }
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) setTech(null);
+      } finally {
+        if (!cancelled) setTechLoading(false);
+      }
+    };
+
+    loadTech();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [decodedPhone]);
 
   // ໂຫລດ photoURL + address ຈາກ technicians/{phone}
   useEffect(() => {
@@ -219,6 +277,14 @@ function TechnicianHome() {
     await authLogout();
     navigate("/", { replace: true });
   };
+
+  if (techLoading) {
+    return (
+      <div className="tech-home-page">
+        <p>ກຳລັງໂຫລດ...</p>
+      </div>
+    );
+  }
 
   if (!tech) {
     return (

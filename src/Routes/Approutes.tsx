@@ -1,5 +1,6 @@
 import { Routes, Route } from "react-router-dom";
 import Welcome from "../pages/Welcome/Welcome";
+import ChooseRole from "../pages/ChooseRole/ChooseRole";
 import Login from "../pages/Login/Login";
 import Register from "../pages/Register/Register";
 import TechnicianLogin from "../pages/TechnicianLogin/TechnicianLogin";
@@ -15,17 +16,16 @@ import Profile from "../pages/Profile/Profile";
 import TechnicianRegister from "../pages/TechnicianRegister/TechnicianRegister";
 import CustomerDetail from "../pages/CustomerDetail/CustomerDetail";
 
-// ທຽບເທົ່າ home: const WelcomeScreen(), ບວກ Navigator.push/pushReplacement ທັງໝົດ
-// ຂອງ Flutter ຖືກແທນທີ່ດ້ວຍ <Route> ຂອງ react-router-dom
 function AppRoutes() {
   return (
     <Routes>
       {/* ລູກຄ້າ */}
       <Route path="/" element={<Welcome />} />
+      <Route path="/choose-role" element={<ChooseRole />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/home" element={<Home />} />
-      <Route path="/detail/:phone" element={<Detail/>} />
+      <Route path="/detail/:phone" element={<Detail />} />
       <Route path="/chat/:phone" element={<Chat />} />
       <Route path="/bookings" element={<Bookings />} />
       <Route path="/history" element={<History />} />
@@ -40,7 +40,7 @@ function AppRoutes() {
 
       <Route path="*" element={<NotFound />} />
     </Routes>
-  ); 
+  );
 }
 
 export default AppRoutes;
