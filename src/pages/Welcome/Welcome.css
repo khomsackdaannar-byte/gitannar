@@ -35,6 +35,13 @@
   cursor: pointer;
 }
 
+.welcome-lang-switch {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  z-index: 2;
+}
+
 .welcome-content {
   flex: 4;
   display: flex;

@@ -40,17 +40,38 @@ function CustomerDetail() {
   const [loading, setLoading] = useState(true);
   const [showCallDialog, setShowCallDialog] = useState(false);
 
+  // chatRoomId ຕ້ອງສ້າງແບບດຽວກັນກັບຝັ່ງລູກຄ້າ (Chat.tsx): `${techPhone}_${customerUid}`
+  const chatRoomId =
+    techPhone && customerUid ? `${techPhone}_${customerUid}` : null;
+
   useEffect(() => {
-    if (!customerUid) {
+    if (!chatRoomId) {
       setLoading(false);
       return;
     }
-    const unsubscribe = onSnapshot(doc(db, "users", customerUid), (snap) => {
-      setCustomer(snap.exists() ? (snap.data() as CustomerData) : null);
+
+    // ດຶງຂໍ້ມູນລູກຄ້າຈາກ chat document ໂດຍກົງ (ບໍ່ອີງໃສ່ collection "users"
+    // ເພາະລູກຄ້າທີ່ login ຜ່ານ OTP ບໍ່ໄດ້ຖືກບັນທຶກລົງ "users")
+    const unsubscribe = onSnapshot(doc(db, "chats", chatRoomId), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setCustomer({
+          name: data.customerName ?? "ລູກຄ້າ",
+          phone: data.customerPhone ?? customerUid ?? "",
+          email: undefined,
+          address: undefined,
+          photoURL: undefined,
+        });
+      } else {
+        // ຍັງບໍ່ມີ chat document (ຍັງບໍ່ເຄີຍແຊັດກັນ) — ໃຊ້ customerUid ຈາກ URL ແທນ
+        setCustomer(
+          customerUid ? { name: "ລູກຄ້າ", phone: customerUid } : null
+        );
+      }
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [customerUid]);
+  }, [chatRoomId, customerUid]);
 
   if (loading) {
     return (
@@ -103,11 +124,14 @@ function CustomerDetail() {
           </button>
           <button
             className="btn btn--outline"
-            onClick={() =>
+            onClick={() => {
+              if (!techPhone || !chatRoomId) return;
               navigate(
-                `/technician-chat/${encodeURIComponent(techPhone ?? "")}/${encodeURIComponent(techPhone ?? "")}`
-              )
-            }
+                `/technician-chat/${encodeURIComponent(techPhone)}/${encodeURIComponent(
+                  chatRoomId
+                )}`
+              );
+            }}
           >
             <MessageCircle size={18} />
             ແຊັດຫາລູກຄ້າ

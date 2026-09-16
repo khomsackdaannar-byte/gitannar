@@ -1,82 +1,239 @@
 .home-page {
   --primary: #3d8983;
   --primary-dark: #2c6b66;
+  --primary-light: #d7f3ef;
   --ink: #1f2a28;
   --muted: #7c8683;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 20% 20%, #bde9e8 0%, transparent 35%),
-    radial-gradient(circle at 80% 80%, #c6b8ff 0%, transparent 35%),
-    linear-gradient(135deg, #f1f7f8, #e9e4ff);
-    padding-bottom: 90px;
+  background: #f3f8f7;
+  padding-bottom: 90px;
 }
 
-.home-appbar {
+/* ===== Hero header (ໜ້າຫຼັກ) ===== */
+.home-hero {
+  position: relative;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: #fff;
+  padding: 26px 20px 36px;
+  border-radius: 0 0 32px 32px;
+  box-shadow: 0 10px 24px rgba(61, 137, 131, 0.28);
+  overflow: hidden;
+}
+
+/* ວົງມົນຕົກແຕ່ງພື້ນຫລັງ ໃຫ້ header ດູມີມິຕິຂຶ້ນ */
+.home-hero__deco {
+  position: absolute;
+  top: -50px;
+  right: -40px;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.home-hero__top {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: var(--primary);
-  color: #fff;
-  padding: 22px 20px 44px;
-  border-radius: 0 0 24px 24px;
-  box-shadow: 0 8px 20px rgba(61, 137, 131, 0.25);
+  justify-content: space-between;
+  margin-bottom: 14px;
+  gap: 10px;
+  z-index: 1;
 }
 
-.home-appbar h1 {
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: 0.2px;
+.home-hero__location {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.16);
+  padding: 6px 12px;
+  border-radius: 999px;
+  flex-shrink: 0;
 }
 
-.home-back {
-  background: rgba(255, 255, 255, 0.18);
+.home-hero__greet {
+  position: relative;
+  font-size: 15px;
+  font-weight: 700;
+  z-index: 1;
+}
+
+.home-hero__wave {
+  display: inline-block;
+  transform-origin: 70% 70%;
+  animation: home-wave 1.8s ease-in-out infinite;
+}
+
+@keyframes home-wave {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  10% { transform: rotate(14deg); }
+  20% { transform: rotate(-8deg); }
+  30% { transform: rotate(14deg); }
+  40% { transform: rotate(-4deg); }
+}
+
+.home-bell {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border-radius: 16px;
   border: none;
+  background: rgba(255, 255, 255, 0.18);
   color: #fff;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  flex-shrink: 0;
+  transition: background 0.15s ease, transform 0.15s ease;
 }
 
-.home-search {
+.home-bell:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.home-bell:active {
+  transform: scale(0.94);
+}
+
+.home-bell__dot {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff5a5f;
+  border: 2px solid var(--primary-dark);
+}
+
+.home-content {
+  padding: 18px 16px 8px;
+}
+
+/* ===== Banner ===== */
+.home-banner {
+  background: linear-gradient(135deg, #2c6b66, #3d8983 60%, #5aa39c);
+  color: #fff;
+  border-radius: 20px;
+  padding: 22px 20px;
+  margin-bottom: 22px;
+  box-shadow: 0 10px 24px rgba(61, 137, 131, 0.28);
+  position: relative;
+  overflow: hidden;
+}
+
+.home-banner__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.home-banner h2 {
+  font-size: 19px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.home-banner p {
+  font-size: 12.5px;
+  opacity: 0.92;
+  line-height: 1.5;
+  max-width: 78%;
+  margin-bottom: 12px;
+}
+
+.home-banner__discount {
+  display: inline-block;
+  background: #ffb020;
+  color: #422c00;
+  font-weight: 800;
+  font-size: 12.5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+}
+
+/* ===== Section title ===== */
+.home-section-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: #fff;
-  border-radius: 14px;
-  margin: -26px 16px 18px;
-  padding: 12px 16px;
-  box-shadow: 0 8px 20px rgba(61, 137, 131, 0.15);
-  position: relative;
-  z-index: 2;
+  justify-content: space-between;
+  margin: 4px 2px 12px;
 }
 
-.home-search input {
-  flex: 1;
-  border: none;
-  outline: none;
-  font-size: 14px;
+.home-section-title h3 {
+  font-size: 15.5px;
+  font-weight: 800;
   color: var(--ink);
-  background: transparent;
 }
 
-.tech-list {
+/* ===== ສິດທິພິເສດ ===== */
+.home-perks {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 0 16px 16px;
+  gap: 10px;
+  margin-bottom: 24px;
 }
 
-/* ===== ໜ້າໝວດ (grid ນ້ອຍໆ 2 ຖັນ) ===== */
+.home-perk-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid #e4f1f0;
+  border-radius: 16px;
+  padding: 12px 14px;
+  box-shadow: 0 4px 14px rgba(61, 137, 131, 0.08);
+}
+
+.home-perk-card__icon {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.home-perk-card__icon--alt {
+  background: #fdeedd;
+  color: #d97b1f;
+}
+
+.home-perk-card__text {
+  flex: 1;
+}
+
+.home-perk-card__title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.home-perk-card__desc {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* ===== ໝວດໝູ່ (grid) ===== */
 .category-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 14px;
-  padding: 20px 16px 28px;
+  margin-bottom: 26px;
 }
 
 .category-tile {
@@ -140,4 +297,165 @@
   color: #1f2a28;
   text-align: center;
   letter-spacing: 0.1px;
+}
+
+/* ===== ບໍລິການແນະນຳ (horizontal scroll cards) ===== */
+.featured-scroll {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  scrollbar-width: none;
+}
+
+.featured-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.featured-card {
+  flex: 0 0 auto;
+  width: 168px;
+  background: #fff;
+  border: 1px solid #e4f1f0;
+  border-radius: 18px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(61, 137, 131, 0.1);
+  text-align: left;
+}
+
+.featured-card__image {
+  position: relative;
+  width: 100%;
+  height: 100px;
+  background: var(--primary-light);
+}
+
+.featured-card__image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.featured-card__placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--primary-dark);
+}
+
+.featured-card__rating {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 999px;
+}
+
+.featured-card__body {
+  padding: 10px 12px 12px;
+}
+
+.featured-card__name {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.featured-card__type {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.featured-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.featured-card__area {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--primary-dark);
+}
+
+/* ===== ໜ້າລາຍການລາຍໝວດ (view === "list") ===== */
+.home-appbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--primary);
+  color: #fff;
+  padding: 22px 20px 44px;
+  border-radius: 0 0 24px 24px;
+  box-shadow: 0 8px 20px rgba(61, 137, 131, 0.25);
+}
+
+.home-appbar h1 {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+.home-back {
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
+  color: #fff;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.home-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border-radius: 14px;
+  margin: -26px 16px 18px;
+  padding: 12px 16px;
+  box-shadow: 0 8px 20px rgba(61, 137, 131, 0.15);
+  position: relative;
+  z-index: 2;
+}
+
+.home-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: var(--ink);
+  background: transparent;
+}
+
+.tech-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px 16px;
 }

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { User, Phone, Mail, MapPin, LogOut, Camera, Pencil, X } from "lucide-react";
+import { User, Phone, Mail, MapPin, LogOut, Camera, X, ChevronRight, ShieldCheck, Clock, Languages } from "lucide-react";
 import { db } from "../../firebase/Firebase";
 import { useAuth } from "../../context/Authcontext";
+import { useLanguage } from "../../context/LanguageContext";
+import LanguageSwitcher from "../../component/LanguageSwitcher/LanguageSwitcher";
 import BottomNav from "../../component/BottomNav/BottomNav";
-import "../Bookings/Bookings.css";
 import "./Profile.css";
 
 interface UserData {
@@ -55,10 +56,11 @@ function resizeImageToBase64(file: File): Promise<string> {
 
 function Profile() {
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [data, setData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
+  const [editSection, setEditSection] = useState<"none" | "personal" | "address">("none");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showPhotoPreview, setShowPhotoPreview] = useState(false);
@@ -131,24 +133,14 @@ function Profile() {
     if (!user) return;
     setSaving(true);
     try {
-      await setDoc(
-        doc(db, "users", user.uid),
-        {
-          name: name.trim(),
-          email: email.trim(),
-          address: address.trim(),
-          phone: phone.trim(),
-        },
-        { merge: true }
-      );
-      setData((prev) => ({
-        ...prev,
-        name: name.trim(),
-        email: email.trim(),
-        address: address.trim(),
-        phone: phone.trim(),
-      }));
-      setEditing(false);
+      const payload =
+        editSection === "personal"
+          ? { name: name.trim(), phone: phone.trim(), email: email.trim() }
+          : { address: address.trim() };
+
+      await setDoc(doc(db, "users", user.uid), payload, { merge: true });
+      setData((prev) => ({ ...prev, ...payload }));
+      setEditSection("none");
     } catch (err) {
       console.error(err);
       alert("ບັນທຶກບໍ່ສຳເລັດ");
@@ -162,7 +154,7 @@ function Profile() {
     setEmail(data?.email || "");
     setAddress(data?.address || "");
     setPhone(data?.phone || "");
-    setEditing(false);
+    setEditSection("none");
   };
 
   const handleLogout = async () => {
@@ -170,136 +162,195 @@ function Profile() {
     navigate("/login", { replace: true });
   };
 
+  const shortUid = user?.uid ? user.uid.slice(0, 8).toUpperCase() : "-";
+
   return (
-    <div className="placeholder-page">
-      <header className="placeholder-appbar">
-        <h1>ຂໍ້ມູນສ່ວນຕົວ</h1>
+    <div className="profile-page">
+      <header className="profile-appbar">
+        <h1>{t.profile.appTitle}</h1>
       </header>
 
       {loading ? (
-        <div className="placeholder-empty">
-          <p>ກຳລັງໂຫລດ...</p>
+        <div className="profile-loading">
+          <p>{t.profile.loading}</p>
+        </div>
+      ) : editSection === "none" ? (
+        <div className="profile-content">
+          {/* ===== Hero card ===== */}
+          <div className="profile-hero">
+            <div className="profile-hero__deco" />
+            <div className="profile-hero__row">
+              <div className="profile-hero__avatar-wrap">
+                <div
+                  className="profile-hero__avatar"
+                  onClick={handleAvatarClick}
+                  style={{ cursor: data?.photoURL ? "pointer" : "default" }}
+                >
+                  {data?.photoURL ? (
+                    <img src={data.photoURL} alt="avatar" />
+                  ) : (
+                    <User size={30} color="#fff" />
+                  )}
+                </div>
+                <button
+                  className="profile-hero__avatar-edit"
+                  onClick={handlePickPhoto}
+                  disabled={uploading}
+                >
+                  <Camera size={13} />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={handlePhotoChange}
+                />
+              </div>
+              <div className="profile-hero__info">
+                <p className="profile-hero__name">{data?.name || t.profile.newUser}</p>
+                <span className="profile-hero__id">ID: {shortUid}</span>
+                <div className="profile-hero__phone">
+                  <Phone size={13} />
+                  {data?.phone || t.profile.noPhone}
+                </div>
+              </div>
+            </div>
+            {uploading && <p className="profile-hero__uploading">ກຳລັງອັບໂຫລດຮູບ...</p>}
+          </div>
+
+          {/* ===== ຕັ້ງຄ່າ (ພາສາ) ===== */}
+          <p className="profile-section-label">{t.profile.settings}</p>
+          <div className="profile-list profile-list--lang">
+            <div className="profile-list__row profile-list__row--static profile-list__row--lang">
+              <div className="profile-list__icon profile-list__icon--purple">
+                <Languages size={18} />
+              </div>
+              <div className="profile-list__text">
+                <p className="profile-list__title">{t.profile.language}</p>
+                <p className="profile-list__desc">{t.profile.languageDesc}</p>
+              </div>
+              <LanguageSwitcher />
+            </div>
+          </div>
+
+          {/* ===== ບັນຊີຜູ້ໃຊ້ ===== */}
+          <p className="profile-section-label">{t.profile.account}</p>
+          <div className="profile-list">
+            <button className="profile-list__row" onClick={() => setEditSection("personal")}>
+              <div className="profile-list__icon">
+                <User size={18} />
+              </div>
+              <div className="profile-list__text">
+                <p className="profile-list__title">{t.profile.personalInfo}</p>
+                <p className="profile-list__desc">{t.profile.personalInfoDesc}</p>
+              </div>
+              <ChevronRight size={18} color="#b7c2bf" />
+            </button>
+
+            <div className="profile-list__divider" />
+
+            <button className="profile-list__row" onClick={() => setEditSection("address")}>
+              <div className="profile-list__icon profile-list__icon--alt">
+                <MapPin size={18} />
+              </div>
+              <div className="profile-list__text">
+                <p className="profile-list__title">{t.profile.address}</p>
+                <p className="profile-list__desc">{data?.address || t.profile.addressEmpty}</p>
+              </div>
+              <ChevronRight size={18} color="#b7c2bf" />
+            </button>
+
+            <div className="profile-list__divider" />
+
+            <button
+              className="profile-list__row"
+              onClick={() => alert(t.profile.securitySoon)}
+            >
+              <div className="profile-list__icon profile-list__icon--gold">
+                <ShieldCheck size={18} />
+              </div>
+              <div className="profile-list__text">
+                <p className="profile-list__title">{t.profile.security}</p>
+                <p className="profile-list__desc">{t.profile.securityDesc}</p>
+              </div>
+              <ChevronRight size={18} color="#b7c2bf" />
+            </button>
+          </div>
+
+          {/* ===== ປະຫວັດ ===== */}
+          <p className="profile-section-label">{t.profile.history}</p>
+          <div className="profile-list">
+            <button className="profile-list__row" onClick={() => navigate("/history")}>
+              <div className="profile-list__icon profile-list__icon--purple">
+                <Clock size={18} />
+              </div>
+              <div className="profile-list__text">
+                <p className="profile-list__title">{t.profile.historyItem}</p>
+                <p className="profile-list__desc">{t.profile.historyItemDesc}</p>
+              </div>
+              <ChevronRight size={18} color="#b7c2bf" />
+            </button>
+          </div>
+
+          <button className="profile-logout-btn" onClick={handleLogout}>
+            <LogOut size={18} />
+            {t.profile.logout}
+          </button>
         </div>
       ) : (
-        <div className="profile-card">
-          <div className="profile-card__avatar-wrap">
-            <div
-              className="profile-card__avatar"
-              onClick={handleAvatarClick}
-              style={{ cursor: data?.photoURL ? "pointer" : "default" }}
-            >
-              {data?.photoURL ? (
-                <img src={data.photoURL} alt="avatar" />
-              ) : (
-                <User size={40} color="#3d8983" />
-              )}
-            </div>
-            <button
-              className="profile-card__avatar-edit"
-              onClick={handlePickPhoto}
-              disabled={uploading}
-            >
-              <Camera size={14} />
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              style={{ display: "none" }}
-              onChange={handlePhotoChange}
-            />
-          </div>
-          {uploading && <p className="profile-card__uploading">ກຳລັງອັບໂຫລດຮູບ...</p>}
+        <div className="profile-content">
+          <div className="profile-edit-card">
+            <h3 className="profile-edit-title">
+              {editSection === "personal" ? t.profile.editPersonalTitle : t.profile.editAddressTitle}
+            </h3>
 
-          {!editing ? (
-            <>
-              <div className="profile-card__row">
-                <User size={18} color="#3d8983" />
-                <div>
-                  <p className="profile-card__label">ຊື່</p>
-                  <p className="profile-card__value">{data?.name || "ບໍ່ມີຂໍ້ມູນ"}</p>
+            {editSection === "personal" && (
+              <>
+                <div className="profile-form-group">
+                  <label>{t.profile.name}</label>
+                  <input value={name} onChange={(e) => setName(e.target.value)} />
                 </div>
-              </div>
-
-              <div className="profile-card__row">
-                <Phone size={18} color="#3d8983" />
-                <div>
-                  <p className="profile-card__label">ເບີໂທລະສັບ</p>
-                  <p className="profile-card__value">{data?.phone || "ບໍ່ມີຂໍ້ມູນ"}</p>
+                <div className="profile-form-group">
+                  <label>{t.profile.phone}</label>
+                  <input
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="020xxxxxxxx"
+                  />
                 </div>
-              </div>
-
-              <div className="profile-card__row">
-                <Mail size={18} color="#3d8983" />
-                <div>
-                  <p className="profile-card__label">ອີເມວ</p>
-                  <p className="profile-card__value">{data?.email || "ບໍ່ມີຂໍ້ມູນ"}</p>
+                <div className="profile-form-group">
+                  <label>{t.profile.email}</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="example@gmail.com"
+                  />
                 </div>
-              </div>
+              </>
+            )}
 
-              <div className="profile-card__row">
-                <MapPin size={18} color="#3d8983" />
-                <div>
-                  <p className="profile-card__label">ທີ່ຢູ່</p>
-                  <p className="profile-card__value">{data?.address || "ບໍ່ມີຂໍ້ມູນ"}</p>
-                </div>
-              </div>
-
-              <button className="profile-card__edit-btn" onClick={() => setEditing(true)}>
-                <Pencil size={16} />
-                ແກ້ໄຂຂໍ້ມູນ
-              </button>
-
-              <button className="profile-card__logout" onClick={handleLogout}>
-                <LogOut size={18} />
-                ອອກຈາກລະບົບ
-              </button>
-            </>
-          ) : (
-            <>
+            {editSection === "address" && (
               <div className="profile-form-group">
-                <label>ຊື່</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} />
-              </div>
-
-              <div className="profile-form-group">
-                <label>ເບີໂທລະສັບ</label>
-                <input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="020xxxxxxxx"
-                />
-              </div>
-
-              <div className="profile-form-group">
-                <label>ອີເມວ</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="example@gmail.com"
-                />
-              </div>
-
-              <div className="profile-form-group">
-                <label>ທີ່ຢູ່</label>
+                <label>{t.profile.address}</label>
                 <input
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="ບ້ານ, ເມືອງ, ແຂວງ"
                 />
               </div>
+            )}
 
-              <div className="profile-card__edit-actions">
-                <button className="profile-card__cancel-btn" onClick={handleCancel} disabled={saving}>
-                  ຍົກເລີກ
-                </button>
-                <button className="profile-card__save-btn" onClick={handleSave} disabled={saving}>
-                  {saving ? "ກຳລັງບັນທຶກ..." : "ບັນທຶກ"}
-                </button>
-              </div>
-            </>
-          )}
+            <div className="profile-card__edit-actions">
+              <button className="profile-card__cancel-btn" onClick={handleCancel} disabled={saving}>
+                {t.profile.cancel}
+              </button>
+              <button className="profile-card__save-btn" onClick={handleSave} disabled={saving}>
+                {saving ? t.profile.saving : t.profile.save}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

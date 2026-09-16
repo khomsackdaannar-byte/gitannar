@@ -18,18 +18,32 @@ const categoryOptions: { value: TechCategoryType; label: string; type: string; i
   { value: TechCategory.phoneRepair, label: "ຊ່າງສ້ອມແປງໂທລະສັບ", type: "ສ້ອມແປງໂທລະສັບ", icon: "phone_android" },
 ];
 
+const vientianeDistricts = [
+  "ເມືອງຈັນທະບູລີ",
+  "ເມືອງສີໂຄດຕະບອງ",
+  "ເມືອງໄຊເສດຖາ",
+  "ເມືອງສີສັດຕະນາກ",
+  "ເມືອງນາຊາຍທອງ",
+  "ເມືອງໄຊທານີ",
+  "ເມືອງຫາດຊາຍຟອງ",
+  "ເມືອງສັງທອງ",
+  "ເມືອງປາກງື່ມ",
+];
+
 function TechnicianRegister() {
   const [step, setStep] = useState<"info" | "otp">("info");
 
-  // ຂໍ້ມູນສ່ວນຕົວ
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [age, setAge] = useState("");
   const [phone, setPhone] = useState("");
   const [category, setCategory] = useState<TechCategoryType>(TechCategory.electric);
-  const [area, setArea] = useState("");
-  const [address, setAddress] = useState(""); // ທີ່ຢູ່ປັດຈຸບັນ
+  const [area, setArea] = useState(vientianeDistricts[0]);
+  const [village, setVillage] = useState("");
+  const [district, setDistrict] = useState(vientianeDistricts[0]);
+  const PROVINCE = "ນະຄອນຫຼວງວຽງຈັນ";
 
-  // ບັດປະຈຳຕົວ / ສຳມະໂນຄົວ (ບັງຄັບຕ້ອງແນບ)
   const [idCardFile, setIdCardFile] = useState<File | null>(null);
   const [idCardPreview, setIdCardPreview] = useState<string | null>(null);
 
@@ -38,7 +52,7 @@ function TechnicianRegister() {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
-  const { sendPhoneOtp, confirmPhoneOtp } = useAuth();
+  const { sendPhoneOtp, confirmPhoneOtp, devOtpCode } = useAuth(); // ← ແກ້ໄຂ: ເພີ່ມ devOtpCode
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -71,16 +85,24 @@ function TechnicianRegister() {
       setError("ກະລຸນາໃສ່ນາມສະກຸນ");
       return;
     }
+    if (!birthDate.trim()) {
+      setError("ກະລຸນາໃສ່ວັນເດືອນປີເກີດ");
+      return;
+    }
+    if (!age.trim()) {
+      setError("ກະລຸນາໃສ່ອາຍຸ");
+      return;
+    }
     if (!/^0\d{7,10}$/.test(phone)) {
       setError("ກະລຸນາໃສ່ເບີໂທໃຫ້ຖືກຕ້ອງ");
       return;
     }
-    if (!area.trim()) {
-      setError("ກະລຸນາໃສ່ພື້ນທີ່ບໍລິການ");
+    if (!area) {
+      setError("ກະລຸນາເລືອກພື້ນທີ່ບໍລິການ");
       return;
     }
-    if (!address.trim()) {
-      setError("ກະລຸນາໃສ່ທີ່ຢູ່ປັດຈຸບັນ");
+    if (!village.trim()) {
+      setError("ກະລຸນາໃສ່ຊື່ບ້ານ");
       return;
     }
     if (!idCardFile) {
@@ -126,7 +148,6 @@ function TechnicianRegister() {
       if (user) {
         await updateProfile(user, { displayName: fullName });
 
-        // ບັນທຶກຂໍ້ມູນຜູ້ໃຊ້ (ສຳລັບ auth/role)
         await setDoc(doc(db, "users", user.uid), {
           uid: user.uid,
           name: fullName,
@@ -135,9 +156,6 @@ function TechnicianRegister() {
           createdAt: new Date(),
         });
 
-        // ບັນທຶກຂໍ້ມູນຊ່າງ (doc ID = ເບີໂທ, ໃຊ້ຄົ້ນຫາຢູ່ໜ້າ TechnicianHome/Home/Detail)
-        // ໝາຍເຫດ: idCardFile ຍັງບໍ່ໄດ້ອັບໂຫຼດຂຶ້ນ Firebase Storage,
-        // ຕອນນີ້ບັນທຶກແຕ່ຊື່ໄຟລ໌ໄວ້ກ່ອນ, ຄ່ອຍເພີ່ມການອັບໂຫຼດຮູບຈິງພາຍຫຼັງ
         await setDoc(doc(db, "technicians", phone.trim()), {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
@@ -146,13 +164,13 @@ function TechnicianRegister() {
           category: selected.value,
           type: selected.type,
           icon: selected.icon,
-          area: area.trim(),
-          address: address.trim(),
+          area: area,
+          address: `ບ້ານ${village.trim()} ${district} ${PROVINCE}`,
           idCardFileName: idCardFile ? idCardFile.name : "",
-          idCardUrl: "", // TODO: ຈະໃສ່ URL ຫຼັງຈາກອັບໂຫຼດ Firebase Storage
+          idCardUrl: "",
           hometown: "",
-          birthDate: "",
-          age: "",
+          birthDate: birthDate.trim(),
+          age: age.trim(),
           rating: 0,
           image: "",
           createdAt: new Date(),
@@ -160,9 +178,9 @@ function TechnicianRegister() {
       }
 
       navigate(`/technician-home/${encodeURIComponent(phone.trim())}`, { replace: true });
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError("ລະຫັດ OTP ບໍ່ຖືກຕ້ອງ ຫຼື ໝົດອາຍຸແລ້ວ");
+      setError(err?.message || "ລະຫັດ OTP ບໍ່ຖືກຕ້ອງ ຫຼື ໝົດອາຍຸແລ້ວ"); // ← ແກ້ໄຂ: ສະແດງ error ຈິງ
     } finally {
       setLoading(false);
     }
@@ -178,7 +196,7 @@ function TechnicianRegister() {
       <div className="login-card">
         <div className="brand">
           <div className="logo">🛠️</div>
-          <h1>Oud Care - ຊ່າງ</h1>
+          <h1>ຊ່າງດ່ວນ - ຊ່າງ</h1>
           <p>
             {step === "info"
               ? "ລົງທະບຽນເປັນຊ່າງ ດ້ວຍເບີໂທຂອງທ່ານ"
@@ -192,7 +210,7 @@ function TechnicianRegister() {
               <label>ຊື່</label>
               <input
                 type="text"
-                placeholder="ໃສ່ຊື່ຂອງທ່ານ"
+                placeholder="ຊື່"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 required
@@ -203,9 +221,31 @@ function TechnicianRegister() {
               <label>ນາມສະກຸນ</label>
               <input
                 type="text"
-                placeholder="ໃສ່ນາມສະກຸນຂອງທ່ານ"
+                placeholder="ນາມສະກຸນ"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>ວັນເດືອນປີເກີດ</label>
+              <input
+                type="text"
+                placeholder="ວັນທີ່ເດືອນປີເກີດ"
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>ອາຍຸ</label>
+              <input
+                type="text"
+                placeholder="ອາຍຸ"
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
                 required
               />
             </div>
@@ -238,24 +278,40 @@ function TechnicianRegister() {
 
             <div className="form-group">
               <label>ພື້ນທີ່ບໍລິການ</label>
+              <select value={area} onChange={(e) => setArea(e.target.value)}>
+                {vientianeDistricts.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>ບ້ານ</label>
               <input
                 type="text"
-                placeholder="ເຊັ່ນ: ເມືອງໄຊເສດຖາ"
-                value={area}
-                onChange={(e) => setArea(e.target.value)}
+                placeholder="ຊື່ບ້ານ"
+                value={village}
+                onChange={(e) => setVillage(e.target.value)}
                 required
               />
             </div>
 
             <div className="form-group">
-              <label>ທີ່ຢູ່ປັດຈຸບັນ</label>
-              <input
-                type="text"
-                placeholder="ບ້ານ, ເມືອງ, ແຂວງ"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                required
-              />
+              <label>ເມືອງ</label>
+              <select value={district} onChange={(e) => setDistrict(e.target.value)}>
+                {vientianeDistricts.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>ແຂວງ</label>
+              <input type="text" value={PROVINCE} disabled />
             </div>
 
             <div className="form-group">
@@ -285,6 +341,13 @@ function TechnicianRegister() {
 
         {step === "otp" && (
           <form onSubmit={handleVerify}>
+            {devOtpCode && (
+              // ← ແກ້ໄຂ: ສະແດງລະຫັດ OTP ຈຳລອງເທິງໜ້າຈໍ (ໂໝດ dev/test ເທົ່ານັ້ນ)
+              <p style={{ color: "#0a7", fontWeight: 600 }}>
+                (ໂໝດທົດສອບ) ລະຫັດ OTP: {devOtpCode}
+              </p>
+            )}
+
             <div className="form-group">
               <label>ລະຫັດ OTP (6 ຫຼັກ)</label>
               <input
@@ -328,11 +391,10 @@ function TechnicianRegister() {
           <a href="/technician-login"> ເຂົ້າສູ່ລະບົບຊ່າງ</a>
         </p>
 
-        {/* ຈຳເປັນສຳລັບ Firebase Phone Auth reCAPTCHA */}
         <div id="recaptcha-container"></div>
       </div>
     </div>
   );
 }
- 
+
 export default TechnicianRegister;

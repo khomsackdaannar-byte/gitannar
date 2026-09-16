@@ -4,6 +4,7 @@ import { updateProfile } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "../../firebase/Firebase";
 import { useAuth } from "../../context/Authcontext";
+import { useLanguage } from "../../context/LanguageContext";
 import "./Register.css";
 
 const OTP_LENGTH = 6;
@@ -18,23 +19,24 @@ function Register() {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
-  const { sendPhoneOtp, confirmPhoneOtp } = useAuth();
+  const { sendPhoneOtp, confirmPhoneOtp, devOtpCode } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (countdown <= 0) return;
-    const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
   }, [countdown]);
 
   const requestOtp = async () => {
     setError("");
     if (!name.trim()) {
-      setError("ກະລຸນາໃສ່ຊື່");
+      setError(t.register.nameRequired);
       return;
     }
     if (!/^0\d{7,10}$/.test(phone)) {
-      setError("ກະລຸນາໃສ່ເບີໂທໃຫ້ຖືກຕ້ອງ");
+      setError(t.register.phoneInvalid);
       return;
     }
     setLoading(true);
@@ -42,9 +44,9 @@ function Register() {
       await sendPhoneOtp(phone);
       setStep("otp");
       setCountdown(RESEND_SECONDS);
-        } catch (err: any) {
+    } catch (err: any) {
       console.error(err);
-      setError(err?.message || "ລະຫັດ OTP ບໍ່ຖືກຕ້ອງ ຫຼື ໝົດອາຍຸແລ້ວ");
+      setError(err?.message || t.register.otpInvalid);
     } finally {
       setLoading(false);
     }
@@ -60,7 +62,7 @@ function Register() {
     setError("");
 
     if (otp.length !== OTP_LENGTH) {
-      setError("ກະລຸນາໃສ່ລະຫັດ OTP ໃຫ້ຄົບ 6 ຫຼັກ");
+      setError(t.register.otpIncomplete);
       return;
     }
 
@@ -82,9 +84,9 @@ function Register() {
       }
 
       navigate("/home", { replace: true });
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError("ລະຫັດ OTP ບໍ່ຖືກຕ້ອງ ຫຼື ໝົດອາຍຸແລ້ວ");
+      setError(err?.message || t.register.otpInvalid);
     } finally {
       setLoading(false);
     }
@@ -100,21 +102,19 @@ function Register() {
       <div className="login-card">
         <div className="brand">
           <div className="logo">♡</div>
-          <h1>Oud Care</h1>
+          <h1>{t.register.brand}</h1>
           <p>
-            {step === "info"
-              ? "ສ້າງບັນຊີໃໝ່ ດ້ວຍເບີໂທຂອງທ່ານ"
-              : `ໃສ່ລະຫັດ OTP ທີ່ສົ່ງໄປຫາ ${phone}`}
+            {step === "info" ? t.register.createTitle : t.register.enterOtpSent(phone)}
           </p>
         </div>
 
         {step === "info" && (
           <form onSubmit={handleSendOtp}>
             <div className="form-group">
-              <label>ຊື່</label>
+              <label>{t.register.nameLabel}</label>
               <input
                 type="text"
-                placeholder="ໃສ່ຊື່ຂອງທ່ານ"
+                placeholder={t.register.namePlaceholder}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -122,10 +122,10 @@ function Register() {
             </div>
 
             <div className="form-group">
-              <label>ເບີໂທລະສັບ</label>
+              <label>{t.register.phoneLabel}</label>
               <input
                 type="tel"
-                placeholder="020xxxxxxxx"
+                placeholder={t.register.phonePlaceholder}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/[^\d]/g, ""))}
                 maxLength={11}
@@ -136,15 +136,21 @@ function Register() {
             {error && <p className="form-error">{error}</p>}
 
             <button type="submit" className="login-btn" disabled={loading}>
-              {loading ? "ກຳລັງສົ່ງລະຫັດ..." : "ສົ່ງລະຫັດ OTP"}
+              {loading ? t.register.sending : t.register.sendOtp}
             </button>
           </form>
         )}
 
         {step === "otp" && (
           <form onSubmit={handleVerify}>
+            {devOtpCode && (
+              <p style={{ color: "#0a7", fontWeight: 600 }}>
+                {t.register.devModeLabel} {devOtpCode}
+              </p>
+            )}
+
             <div className="form-group">
-              <label>ລະຫັດ OTP (6 ຫຼັກ)</label>
+              <label>{t.register.otpLabel}</label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -163,7 +169,7 @@ function Register() {
 
             <div className="login-options">
               <button type="button" className="link-btn" onClick={() => setStep("info")}>
-                ← ແກ້ໄຂຂໍ້ມູນ
+                {t.register.editInfo}
               </button>
               <button
                 type="button"
@@ -171,24 +177,21 @@ function Register() {
                 onClick={handleResend}
                 disabled={countdown > 0}
               >
-                {countdown > 0 ? `ສົ່ງລະຫັດຄືນໃໝ່ (${countdown}s)` : "ສົ່ງລະຫັດຄືນໃໝ່"}
+                {countdown > 0 ? t.register.resend(countdown) : t.register.resendNow}
               </button>
             </div>
 
             <button type="submit" className="login-btn" disabled={loading}>
-              {loading ? "ກຳລັງກວດສອບ..." : "ຢືນຢັນ ແລະ ສ້າງບັນຊີ"}
+              {loading ? t.register.verifying : t.register.verify}
             </button>
           </form>
         )}
 
         <p className="signup">
-          ມີບັນຊີແລ້ວບໍ່?
-          <a href="/login"> ເຂົ້າສູ່ລະບົບ</a>
+          {t.register.alreadyHave}
+          <a href="/login"> {t.register.loginLink}</a>
         </p>
-         <p className="signup">
-  ເປັນຊ່າງບໍ່?
-  <a href="/register-technician"> ລົງທະບຽນເປັນຊ່າງ</a>
-</p>
+        <p className="signup"></p>
         {/* ຈຳເປັນສຳລັບ Firebase Phone Auth reCAPTCHA */}
         <div id="recaptcha-container"></div>
       </div>

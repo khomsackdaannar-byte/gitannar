@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { collection, doc, getDoc, onSnapshot, orderBy, query, setDoc, where } from "firebase/firestore";
 import { LogOut, User, Camera, X, MessageCircle, UserCircle, MapPin, Star, Phone } from "lucide-react";
-import { db } from "../../firebase/Firebase";
+import { db, auth } from "../../firebase/Firebase";
 import { techList, type Technician } from "../../Types/Technician";
 import { useAuth } from "../../context/Authcontext";
+import { useLanguage } from "../../context/LanguageContext";
+import { useNewMessageAlert } from "../../hooks/useNewMessageAlert"; // ວາງໄຟລ໌ hook ໄວ້ທີ່ src/hooks/
 import "./technicianhome.css";
 
 interface ChatRoom {
@@ -64,6 +66,7 @@ function TechnicianHome() {
   const { phone } = useParams<{ phone: string }>();
   const navigate = useNavigate();
   const { logout: authLogout } = useAuth();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<TabKey>("chat");
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [loading, setLoading] = useState(true);
@@ -221,6 +224,10 @@ function TechnicianHome() {
       ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
       : null;
 
+  // ===== ແຈ້ງເຕືອນ global: ມີລູກຄ້າທັກມາ ເຖິງແມ່ນຢູ່ໜ້ານີ້ ບໍ່ໄດ້ເປີດແຊັດເຂົ້າໄປໃນຫ້ອງໃດຫ້ອງນຶ່ງ =====
+  const myId = auth.currentUser?.uid ?? "anonymous";
+  useNewMessageAlert("techPhone", tech?.phone, myId, (room) => room.customerName ?? "");
+
   const handlePickPhoto = () => {
     fileInputRef.current?.click();
   };
@@ -281,7 +288,7 @@ function TechnicianHome() {
   if (techLoading) {
     return (
       <div className="tech-home-page">
-        <p>ກຳລັງໂຫລດ...</p>
+        <p>{t.technicianHome.loading}</p>
       </div>
     );
   }
@@ -289,7 +296,7 @@ function TechnicianHome() {
   if (!tech) {
     return (
       <div className="tech-home-page">
-        <p>ບໍ່ພົບຂໍ້ມູນຊ່າງ</p>
+        <p>{t.technicianHome.noTech}</p>
       </div>
     );
   }
@@ -297,10 +304,10 @@ function TechnicianHome() {
   return (
     <div className="tech-home-page">
       <header className="tech-home-appbar">
-        <h1>{activeTab === "chat" ? `ລາຍການແຊັດ (${tech.name})` : `ຂໍ້ມູນຊ່າງ`}</h1>
+        <h1>{activeTab === "chat" ? t.technicianHome.chatListTitle(tech.name) : t.technicianHome.profileTitle}</h1>
         <button
           className="tech-home-logout"
-          title="ອອກຈາກລະບົບ"
+          title={t.technicianHome.logoutTitle}
           onClick={() => setShowLogoutConfirm(true)}
         >
           <LogOut size={20} color="#fff" />
@@ -311,9 +318,9 @@ function TechnicianHome() {
       {activeTab === "chat" && (
         <div className="tech-home-list">
           {error && <p className="tech-home-status">ຜິດພາດ: {error}</p>}
-          {loading && !error && <p className="tech-home-status">ກຳລັງໂຫລດ...</p>}
+          {loading && !error && <p className="tech-home-status">{t.technicianHome.loading}</p>}
           {!loading && !error && rooms.length === 0 && (
-            <p className="tech-home-status">ຍັງບໍ່ມີລູກຄ້າແຊັດເຂົ້າມາ</p>
+            <p className="tech-home-status">{t.technicianHome.noChats}</p>
           )}
           {rooms.map((room) => (
             <div
@@ -399,7 +406,7 @@ function TechnicianHome() {
                     className="tech-home-address-cancel"
                     onClick={() => setEditingAddress(false)}
                   >
-                    ຍົກເລີກ
+                    {t.technicianHome.cancel}
                   </button>
                 </div>
               ) : (
@@ -413,7 +420,7 @@ function TechnicianHome() {
           {/* ===== ຣີວິວ ===== */}
           <div className="tech-home-reviews">
             <h3>ຣີວິວຈາກລູກຄ້າ</h3>
-            {reviewsLoading && <p className="tech-home-status">ກຳລັງໂຫລດ...</p>}
+            {reviewsLoading && <p className="tech-home-status">{t.technicianHome.loading}</p>}
             {!reviewsLoading && reviewsError && (
               <p className="tech-home-status">ຍັງບໍ່ມີຣີວິວ</p>
             )}
@@ -449,28 +456,28 @@ function TechnicianHome() {
           onClick={() => setActiveTab("chat")}
         >
           <MessageCircle size={20} />
-          <span>ແຊັດລູກຄ້າ</span>
+          <span>{t.technicianHome.tabChat}</span>
         </button>
         <button
           className={`tech-home-tab ${activeTab === "profile" ? "tech-home-tab--active" : ""}`}
           onClick={() => setActiveTab("profile")}
         >
           <UserCircle size={20} />
-          <span>ຂໍ້ມູນຊ່າງ</span>
+          <span>{t.technicianHome.tabProfile}</span>
         </button>
       </div>
 
       {showLogoutConfirm && (
         <div className="dialog-overlay" onClick={() => setShowLogoutConfirm(false)}>
           <div className="dialog-box" onClick={(e) => e.stopPropagation()}>
-            <h3>ອອກຈາກລະບົບ</h3>
-            <p>ທ່ານແນ່ໃຈບໍ່ວ່າຈະອອກຈາກລະບົບ?</p>
+            <h3>{t.technicianHome.logoutTitle}</h3>
+            <p>{t.technicianHome.logoutConfirm}</p>
             <div className="dialog-actions">
               <button className="dialog-btn" onClick={() => setShowLogoutConfirm(false)}>
-                ຍົກເລີກ
+                {t.technicianHome.cancel}
               </button>
               <button className="dialog-btn dialog-btn--danger" onClick={logout}>
-                ອອກຈາກລະບົບ
+                {t.technicianHome.logout}
               </button>
             </div>
           </div>

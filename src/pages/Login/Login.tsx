@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { collection, doc, getDocs, query, setDoc, where } from "firebase/firestore";
+import { auth, db } from "../../firebase/Firebase";
 import { useAuth } from "../../context/Authcontext";
+import { useLanguage } from "../../context/LanguageContext";
 import "./Login.css";
 
 const OTP_LENGTH = 6;
@@ -14,19 +17,20 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
-  const { sendPhoneOtp, confirmPhoneOtp } = useAuth();
+  const { sendPhoneOtp, confirmPhoneOtp, devOtpCode } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (countdown <= 0) return;
-    const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
   }, [countdown]);
 
   const requestOtp = async () => {
     setError("");
     if (!/^0\d{7,10}$/.test(phone)) {
-      setError("ກະລຸນາໃສ່ເບີໂທໃຫ້ຖືກຕ້ອງ");
+      setError(t.login.phoneInvalid);
       return;
     }
     setLoading(true);
@@ -36,7 +40,7 @@ const Login = () => {
       setCountdown(RESEND_SECONDS);
     } catch (err: any) {
       console.error(err);
-    setError("ສົ່ງລະຫັດບໍ່ສຳເລັດ: " + (err?.code || "") + " " + (err?.message || String(err)));
+      setError(`${t.login.sendFailed}: ${err?.code || ""} ${err?.message || String(err)}`);
     } finally {
       setLoading(false);
     }
@@ -52,17 +56,44 @@ const Login = () => {
     setError("");
 
     if (otp.length !== OTP_LENGTH) {
-      setError("ກະລຸນາໃສ່ລະຫັດ OTP ໃຫ້ຄົບ 6 ຫຼັກ");
+      setError(t.login.otpIncomplete);
       return;
     }
 
     setLoading(true);
     try {
       await confirmPhoneOtp(otp);
-      navigate("/home");
-        } catch (err: any) {
+
+      const newUser = auth.currentUser;
+      if (!newUser) {
+        throw new Error("ບໍ່ພົບ session ຂອງຜູ້ໃຊ້");
+      }
+
+      const trimmedPhone = phone.trim();
+
+      const q = query(collection(db, "users"), where("phone", "==", trimmedPhone));
+      const snap = await getDocs(q);
+
+      if (snap.empty) {
+        setError(t.login.noAccountFound);
+        setLoading(false);
+        return;
+      }
+
+      const oldData = snap.docs[0].data();
+      await setDoc(doc(db, "users", newUser.uid), {
+        ...oldData,
+        uid: newUser.uid,
+      });
+
+      if (oldData.role === "technician" && oldData.phone) {
+        navigate(`/technician-home/${encodeURIComponent(oldData.phone)}`, { replace: true });
+      } else {
+        navigate("/home", { replace: true });
+      }
+    } catch (err: any) {
       console.error(err);
-      setError(err?.message || "ລະຫັດ OTP ບໍ່ຖືກຕ້ອງ ຫຼື ໝົດອາຍຸແລ້ວ");
+      setError(err?.message || t.login.otpInvalid);
     } finally {
       setLoading(false);
     }
@@ -78,21 +109,19 @@ const Login = () => {
       <div className="login-card">
         <div className="brand">
           <div className="logo">♡</div>
-          <h1> ຊ່າງດ່ວນ </h1>
+          <h1>{t.login.brand}</h1>
           <p>
-            {step === "phone"
-              ? "Welcome back! ໃສ່ເບີໂທເພື່ອເຂົ້າສູ່ລະບົບ"
-              : `ໃສ່ລະຫັດ OTP ທີ່ສົ່ງໄປຫາ ${phone}`}
+            {step === "phone" ? t.login.welcomeBack : t.login.enterOtpSent(phone)}
           </p>
         </div>
 
         {step === "phone" && (
           <form onSubmit={handleSendOtp}>
             <div className="form-group">
-              <label>ເບີໂທລະສັບ</label>
+              <label>{t.login.phoneLabel}</label>
               <input
                 type="tel"
-                placeholder="020xxxxxxxx"
+                placeholder={t.login.phonePlaceholder}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/[^\d]/g, ""))}
                 maxLength={11}
@@ -103,15 +132,21 @@ const Login = () => {
             {error && <p className="form-error">{error}</p>}
 
             <button type="submit" className="login-btn" disabled={loading}>
-              {loading ? "ກຳລັງສົ່ງລະຫັດ..." : "ສົ່ງລະຫັດ OTP"}
+              {loading ? t.login.sending : t.login.sendOtp}
             </button>
           </form>
         )}
 
         {step === "otp" && (
           <form onSubmit={handleVerify}>
+            {devOtpCode && (
+              <p style={{ color: "#0a7", fontWeight: 600 }}>
+                {t.login.devModeLabel} {devOtpCode}
+              </p>
+            )}
+
             <div className="form-group">
-              <label>ລະຫັດ OTP (6 ຫຼັກ)</label>
+              <label>{t.login.otpLabel}</label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -130,7 +165,7 @@ const Login = () => {
 
             <div className="login-options">
               <button type="button" className="link-btn" onClick={() => setStep("phone")}>
-                ← ປ່ຽນເບີໂທ
+                {t.login.changePhone}
               </button>
               <button
                 type="button"
@@ -138,18 +173,18 @@ const Login = () => {
                 onClick={handleResend}
                 disabled={countdown > 0}
               >
-                {countdown > 0 ? `ສົ່ງລະຫັດຄືນໃໝ່ (${countdown}s)` : "ສົ່ງລະຫັດຄືນໃໝ່"}
+                {countdown > 0 ? t.login.resend(countdown) : t.login.resendNow}
               </button>
             </div>
 
             <button type="submit" className="login-btn" disabled={loading}>
-              {loading ? "ກຳລັງກວດສອບ..." : "ຢືນຢັນ ແລະ ເຂົ້າສູ່ລະບົບ"}
+              {loading ? t.login.verifying : t.login.verify}
             </button>
           </form>
         )}
 
         <div className="divider">
-          <span>Or sign in with</span>
+          <span>{t.login.orSignInWith}</span>
         </div>
 
         <div className="social-login">
@@ -158,8 +193,8 @@ const Login = () => {
         </div>
 
         <p className="signup">
-          Don't have an account?
-          <a href="/register"> Sign Up</a>
+          {t.login.noAccount}
+          <a href="/register"> {t.login.signUp}</a>
         </p>
 
         {/* ຈຳເປັນສຳລັບ Firebase Phone Auth reCAPTCHA (ເບິ່ງບໍ່ເຫັນ) */}

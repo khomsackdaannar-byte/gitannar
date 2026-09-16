@@ -1,43 +1,96 @@
-.profile-card {
+.profile-page {
+  min-height: 100vh;
+  background: #f3f8f7;
+  padding-bottom: 90px;
+}
+
+.profile-appbar {
+  text-align: center;
   background: #fff;
-  border-radius: 20px;
-  margin: 20px 16px;
-  padding: 24px 20px;
-  box-shadow: 0 4px 14px rgba(61, 137, 131, 0.1);
+  padding: 22px 20px 16px;
+  border-bottom: 1px solid #eaf4f3;
 }
 
-.profile-card__avatar-wrap {
+.profile-appbar h1 {
+  font-size: 19px;
+  font-weight: 800;
+  color: #1f2a28;
+}
+
+.profile-loading {
+  display: flex;
+  justify-content: center;
+  padding: 80px 20px;
+  color: #7c8683;
+}
+
+.profile-content {
+  padding: 18px 16px 8px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+/* ===== Hero card ===== */
+.profile-hero {
   position: relative;
-  width: 72px;
-  margin: 0 auto 8px;
+  background: linear-gradient(135deg, #2c6b66, #3d8983);
+  border-radius: 22px;
+  padding: 22px 20px;
+  margin-bottom: 22px;
+  overflow: hidden;
+  box-shadow: 0 12px 26px rgba(61, 137, 131, 0.3);
 }
 
-.profile-card__avatar {
-  width: 72px;
-  height: 72px;
+.profile-hero__deco {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 130px;
+  height: 130px;
   border-radius: 50%;
-  background: #d6efec;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.profile-hero__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 1;
+}
+
+.profile-hero__avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.profile-hero__avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
 }
 
-.profile-card__avatar img {
+.profile-hero__avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.profile-card__avatar-edit {
+.profile-hero__avatar-edit {
   position: absolute;
-  bottom: 0;
-  right: -4px;
-  width: 26px;
-  height: 26px;
+  bottom: -2px;
+  right: -2px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: #3d8983;
-  color: #fff;
+  background: #ffb020;
+  color: #422c00;
   border: 2px solid #fff;
   display: flex;
   align-items: center;
@@ -45,70 +98,194 @@
   cursor: pointer;
 }
 
-.profile-card__avatar-edit:disabled {
+.profile-hero__avatar-edit:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.profile-card__uploading {
-  text-align: center;
-  font-size: 12px;
-  color: #3d8983;
-  margin-bottom: 16px;
+.profile-hero__info {
+  color: #fff;
+  min-width: 0;
 }
 
-.profile-card__row {
+.profile-hero__name {
+  font-size: 17px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-hero__id {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 3px 9px;
+  border-radius: 999px;
+  margin: 5px 0 6px;
+}
+
+.profile-hero__phone {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid #eef1f0;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  opacity: 0.9;
 }
 
-.profile-card__label {
+.profile-hero__uploading {
+  position: relative;
+  margin-top: 12px;
+  font-size: 11.5px;
+  color: #fff;
+  opacity: 0.9;
+}
+
+/* ===== Section list ===== */
+.profile-section-label {
   font-size: 12px;
-  color: #8a8377;
-  margin-bottom: 2px;
+  font-weight: 700;
+  color: #7c8683;
+  margin: 4px 4px 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
-.profile-card__value {
-  font-size: 15px;
-  font-weight: 600;
+.profile-list {
+  background: #fff;
+  border: 1px solid #eaf4f3;
+  border-radius: 18px;
+  overflow: hidden;
+  margin-bottom: 24px;
+  box-shadow: 0 6px 16px rgba(61, 137, 131, 0.06);
+}
+
+.profile-list__row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: none;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.profile-list__row:hover {
+  background: #f6fbfa;
+}
+
+.profile-list__row--static {
+  cursor: default;
+}
+
+.profile-list__row--static:hover {
+  background: #fff;
+}
+
+/* ແຖວທີ່ມີ LanguageSwitcher ຢູ່ຂວາສຸດ */
+.profile-list__row--lang {
+  cursor: default;
+}
+
+/* ກ່ອງທີ່ຫໍ່ແຖວພາສາ ຕ້ອງບໍ່ຕັດ dropdown ທີ່ລອຍອອກມາ */
+.profile-list--lang {
+  overflow: visible;
+}
+
+.profile-list__divider {
+  height: 1px;
+  background: #f0f4f3;
+  margin: 0 16px;
+}
+
+.profile-list__icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: #d7f3ef;
+  color: #2c6b66;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-list__icon--alt {
+  background: #dceafd;
+  color: #35659a;
+}
+
+.profile-list__icon--gold {
+  background: #fdeedd;
+  color: #d97b1f;
+}
+
+.profile-list__icon--purple {
+  background: #ece3fb;
+  color: #6a4aa8;
+}
+
+.profile-list__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-list__title {
+  font-size: 14px;
+  font-weight: 700;
   color: #1f2a28;
 }
 
-.profile-card__edit-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 20px;
-  padding: 12px;
-  border: 1.5px solid #3d8983;
-  border-radius: 12px;
-  background: #fff;
-  color: #3d8983;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
+.profile-list__desc {
+  font-size: 11.5px;
+  color: #7c8683;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.profile-card__logout {
+/* ===== Logout ===== */
+.profile-logout-btn {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-top: 12px;
-  padding: 12px;
+  padding: 14px;
   border: none;
-  border-radius: 12px;
+  border-radius: 16px;
   background: #fde8e8;
   color: #c0392b;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  margin-bottom: 10px;
+  transition: background 0.15s ease;
+}
+
+.profile-logout-btn:hover {
+  background: #fbd6d6;
+}
+
+/* ===== Edit form ===== */
+.profile-edit-card {
+  background: #fff;
+  border: 1px solid #eaf4f3;
+  border-radius: 20px;
+  padding: 22px 20px;
+  box-shadow: 0 6px 18px rgba(61, 137, 131, 0.08);
+}
+
+.profile-edit-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1f2a28;
+  margin-bottom: 18px;
 }
 
 .profile-form-group {
@@ -136,11 +313,6 @@
 .profile-form-group input:focus {
   box-shadow: 0 0 0 2px rgba(61, 137, 131, 0.2);
   background: #fff;
-}
-
-.profile-form-group input:disabled {
-  color: #999;
-  cursor: not-allowed;
 }
 
 .profile-card__edit-actions {
@@ -176,6 +348,8 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* ===== Photo preview (ຄືເກົ່າ) ===== */
 .photo-preview-overlay {
   position: fixed;
   top: 0;

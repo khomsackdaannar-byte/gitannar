@@ -1,15 +1,17 @@
 import { useNavigate } from "react-router-dom";
 import { User, Wrench } from "lucide-react";
+import { useLanguage } from "../../context/LanguageContext";
 import "./ChooseRole.css";
 
 function ChooseRole() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   return (
     <div className="role-page">
       <div className="role-header">
-        <h1 className="role-title">ທ່ານແມ່ນໃຜ?</h1>
-        <p className="role-subtitle">ເລືອກປະເພດບັນຊີເພື່ອລົງທະບຽນ</p>
+        <h1 className="role-title">{t.chooseRole.title}</h1>
+        <p className="role-subtitle">{t.chooseRole.subtitle}</p>
       </div>
 
       <div className="role-options">
@@ -17,8 +19,8 @@ function ChooseRole() {
           <div className="role-card__icon">
             <User size={40} color="#fff" />
           </div>
-          <h2>ລົງທະບຽນເປັນຜູ້ໃຊ້</h2>
-          <p>ຄົ້ນຫາ ແລະ ຈ້າງຊ່າງໃກ້ບ້ານທ່ານ</p>
+          <h2>{t.chooseRole.customerTitle}</h2>
+          <p>{t.chooseRole.customerDesc}</p>
         </button>
 
         <button
@@ -28,13 +30,13 @@ function ChooseRole() {
           <div className="role-card__icon role-card__icon--tech">
             <Wrench size={40} color="#fff" />
           </div>
-          <h2>ລົງທະບຽນເປັນຊ່າງ</h2>
-          <p>ຮັບວຽກ ແລະ ຫາລູກຄ້າໃໝ່</p>
+          <h2>{t.chooseRole.techTitle}</h2>
+          <p>{t.chooseRole.techDesc}</p>
         </button>
       </div>
 
       <button className="role-back" onClick={() => navigate(-1)}>
-        ← ກັບຄືນ
+        {t.chooseRole.back}
       </button>
     </div>
   );

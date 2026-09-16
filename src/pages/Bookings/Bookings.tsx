@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
-import { MessageCircle, Bookmark } from "lucide-react";
+import { MessageCircle, RefreshCw } from "lucide-react";
 import { db, auth } from "../../firebase/Firebase";
 import { techList } from "../../Types/Technician";
 import { useTechnicianPhotos } from "../../hooks/useTechnicianPhotos";
+import { useLanguage } from "../../context/LanguageContext";
 import BottomNav from "../../component/BottomNav/BottomNav";
 import "./Bookings.css";
 
@@ -15,8 +16,20 @@ interface ChatRoom {
   lastTimestamp?: { seconds: number };
 }
 
+function formatChatDate(seconds?: number) {
+  if (!seconds) return "";
+  const date = new Date(seconds * 1000);
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  if (sameDay) {
+    return date.toLocaleTimeString("lo-LA", { hour: "2-digit", minute: "2-digit" });
+  }
+  return `${date.getDate()}/${date.getMonth() + 1}`;
+}
+
 function Bookings() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [chats, setChats] = useState<ChatRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const photoMap = useTechnicianPhotos();
@@ -41,21 +54,27 @@ function Bookings() {
   }, [myUid]);
 
   return (
-    <div className="placeholder-page">
-      <header className="placeholder-appbar">
-        <h1>ການສົນທະນາ</h1>
+    <div className="chatlist-page">
+      <header className="chatlist-appbar">
+        <h1>{t.bookings.title}</h1>
+        <button className="chatlist-refresh" aria-label="ໂຫລດຄືນໃໝ່">
+          <RefreshCw size={18} />
+        </button>
       </header>
 
       {loading && (
-        <div className="placeholder-empty">
-          <p>ກຳລັງໂຫລດ...</p>
+        <div className="chatlist-empty">
+          <p>{t.bookings.loading}</p>
         </div>
       )}
 
       {!loading && chats.length === 0 && (
-        <div className="placeholder-empty">
-          <Bookmark size={48} color="#3d8983" />
-          <p>ຍັງບໍ່ມີການແຊັດ</p>
+        <div className="chatlist-empty">
+          <div className="chatlist-empty__icon">
+            <MessageCircle size={36} />
+          </div>
+          <p>{t.bookings.empty}</p>
+          <span>{t.bookings.emptyDesc}</span>
         </div>
       )}
 
@@ -74,12 +93,20 @@ function Bookings() {
                   {image ? (
                     <img src={image} alt={tech?.name} />
                   ) : (
-                    <MessageCircle size={28} color="#3d8983" />
+                    <MessageCircle size={24} color="#3d8983" />
                   )}
                 </div>
                 <div className="chat-list-info">
-                  <p className="chat-list-name">{tech?.name || chat.techPhone}</p>
-                  <p className="chat-list-last">{chat.lastMessage || "ເລີ່ມການສົນທະນາ..."}</p>
+                  <div className="chat-list-top">
+                    <p className="chat-list-name">{tech?.name || chat.techPhone}</p>
+                    <span className="chat-list-date">{formatChatDate(chat.lastTimestamp?.seconds)}</span>
+                  </div>
+                  {tech?.type && (
+                    <div className="chat-list-meta">
+                      <span className="chat-list-tag">{tech.type}</span>
+                    </div>
+                  )}
+                  <p className="chat-list-last">{chat.lastMessage || t.bookings.startConvo}</p>
                 </div>
               </div>
             );

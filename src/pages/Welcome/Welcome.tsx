@@ -4,11 +4,14 @@ import { doc, getDoc } from "firebase/firestore";
 import { Wrench } from "lucide-react";
 import { db } from "../../firebase/Firebase";
 import { useAuth } from "../../context/Authcontext";
+import { useLanguage } from "../../context/LanguageContext";
+import LanguageSwitcher from "../../component/LanguageSwitcher/LanguageSwitcher";
 import "./Welcome.css";
 
 function Welcome() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { t } = useLanguage();
   const [checking, setChecking] = useState(true);
   const [profile, setProfile] = useState<{ role: string; phone: string } | null>(null);
 
@@ -73,30 +76,32 @@ function Welcome() {
   return (
     <div className="welcome-page">
       <div className="welcome-hero">
+        <div className="welcome-lang-switch">
+          <LanguageSwitcher />
+        </div>
+
         <div className="welcome-hero__box">
           <Wrench size={90} color="#fff" />
         </div>
         <button className="welcome-skip" onClick={() => navigate("/login")}>
-          ຂ້າມ
+          {t.welcome.skip}
         </button>
       </div>
 
       <div className="welcome-content">
         <h1 className="welcome-title">
-          ຍິນດີຕ້ອນຮັບສູ່
+          {t.welcome.titleLine1}
           <br />
-          <span className="welcome-title--accent">ຊ່າງດ່ວນ</span>
+          <span className="welcome-title--accent">{t.welcome.titleAccent}</span>
         </h1>
-        <p className="welcome-subtitle">
-          ຄົ້ນຫາຊ່າງໃກ້ບ້ານທ່ານໄດ້ໄວ ປອດໄພ ແລະ ເຊື່ອຖືໄດ້
-        </p>
+        <p className="welcome-subtitle">{t.welcome.subtitle}</p>
 
         <button
           className="welcome-btn welcome-btn--primary"
           onClick={handleStart}
           disabled={checking}
         >
-          {checking ? "ກຳລັງກວດສອບ..." : "ເລີ່ມຕົ້ນ"}
+          {checking ? t.welcome.checking : t.welcome.start}
         </button>
       </div>
     </div>

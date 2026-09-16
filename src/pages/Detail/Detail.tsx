@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { doc, getDoc } from "firebase/firestore";
 import { getTechIcon } from "../../Utils/Icon";
 import {
   ArrowLeft,
@@ -11,7 +12,8 @@ import {
   Phone,
   MessageCircle,
 } from "lucide-react";
-import { techList } from "../../Types/Technician";
+import { db } from "../../firebase/Firebase";
+import { techList, type Technician } from "../../Types/Technician";
 import { useTechnicianPhotos } from "../../hooks/useTechnicianPhotos";
 import "./Detail.css";
 
@@ -43,9 +45,77 @@ function Detail() {
   const [showCallDialog, setShowCallDialog] = useState(false);
   const photoMap = useTechnicianPhotos();
 
-  const tech = techList.find((t) => t.phone === decodeURIComponent(phone ?? ""));
+  const decodedPhone = decodeURIComponent(phone ?? "");
+  const staticTech = techList.find((t) => t.phone === decodedPhone);
+
+  // ຂໍ້ມູນຊ່າງ (ຫາໃນ techList ຄົງທີ່ກ່ອນ, ຖ້າບໍ່ພົບໃຫ້ໄປອ່ານ Firestore)
+  const [tech, setTech] = useState<Technician | null>(staticTech ?? null);
+  const [techLoading, setTechLoading] = useState(!staticTech);
+
+  useEffect(() => {
+    if (staticTech) {
+      setTech(staticTech);
+      setTechLoading(false);
+      return;
+    }
+    if (!decodedPhone) {
+      setTech(null);
+      setTechLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setTechLoading(true);
+
+    const loadTech = async () => {
+      try {
+        const snap = await getDoc(doc(db, "technicians", decodedPhone));
+        if (cancelled) return;
+
+        if (snap.exists()) {
+          const data = snap.data();
+          setTech({
+            name: data.name ?? "",
+            type: data.type ?? "",
+            category: data.category ?? "electric",
+            phone: data.phone ?? decodedPhone,
+            area: data.area ?? "",
+            hometown: data.hometown ?? "",
+            birthDate: data.birthDate ?? "",
+            age: data.age ?? "",
+            rating: data.rating ?? 0,
+            icon: data.icon ?? "electrical_services",
+            image: data.image || undefined,
+            address: data.address || undefined,
+          });
+        } else {
+          setTech(null);
+        }
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) setTech(null);
+      } finally {
+        if (!cancelled) setTechLoading(false);
+      }
+    };
+
+    loadTech();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [decodedPhone]);
+
   const Icon = tech ? getTechIcon(tech.icon) : MapPin;
   const image = tech ? photoMap[tech.phone] || tech.image : undefined;
+
+  if (techLoading) {
+    return (
+      <div className="detail-page">
+        <p>ກຳລັງໂຫລດ...</p>
+      </div>
+    );
+  }
 
   if (!tech) {
     return (
@@ -79,12 +149,30 @@ function Detail() {
         <div className="detail-card">
           <InfoRow icon={MapPin} label="ພື້ນທີ່ບໍລິການ" value={tech.area} />
           <hr />
-          <InfoRow icon={HomeIcon} label="ບ້ານເກີດ" value={tech.hometown} />
-          <hr />
-          <InfoRow icon={Cake} label="ວັນເດືອນປີເກີດ" value={tech.birthDate} />
-          <hr />
-          <InfoRow icon={User} label="ອາຍຸ" value={`${tech.age} ປີ`} />
-          <hr />
+          {tech.address && (
+            <>
+              <InfoRow icon={HomeIcon} label="ບ້ານ, ເມືອງ, ແຂວງ" value={tech.address} />
+              <hr />
+            </>
+          )}
+          {tech.hometown && (
+            <>
+              <InfoRow icon={HomeIcon} label="ບ້ານເກີດ" value={tech.hometown} />
+              <hr />
+            </>
+          )}
+          {tech.birthDate && (
+            <>
+              <InfoRow icon={Cake} label="ວັນເດືອນປີເກີດ" value={tech.birthDate} />
+              <hr />
+            </>
+          )}
+          {tech.age && (
+            <>
+              <InfoRow icon={User} label="ອາຍຸ" value={`${tech.age} ປີ`} />
+              <hr />
+            </>
+          )}
           <InfoRow icon={Star} label="ຄະແນນລີວິວ" value={`${tech.rating} / 5.0`} />
           <hr />
           <InfoRow icon={Phone} label="ເບີໂທ" value={tech.phone} />

@@ -11,6 +11,8 @@ import { auth } from "../firebase/Firebase";
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  customerPhone: string | null;
+  devOtpCode: string | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   sendPhoneOtp: (phone: string) => Promise<void>;
@@ -23,9 +25,17 @@ const OTP_KEY = "mock_otp_code";
 const OTP_EXPIRES_KEY = "mock_otp_expires";
 const OTP_TTL_MS = 5 * 60 * 1000; // ໝົດອາຍຸໃນ 5 ນາທີ
 
+const PENDING_PHONE_KEY = "pending_phone";
+const CUSTOMER_PHONE_KEY = "customer_phone";
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [devOtpCode, setDevOtpCode] = useState<string | null>(null);
+
+  const [customerPhone, setCustomerPhone] = useState<string | null>(
+    localStorage.getItem(CUSTOMER_PHONE_KEY)
+  );
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -43,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signOut(auth);
     sessionStorage.removeItem(OTP_KEY);
     sessionStorage.removeItem(OTP_EXPIRES_KEY);
+    setDevOtpCode(null);
   };
 
   // ຈຳລອງການສົ່ງ OTP — ເກັບໄວ້ໃນ sessionStorage ບໍ່ຫາຍເມື່ອ hot-reload
@@ -52,7 +63,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         sessionStorage.setItem(OTP_KEY, code);
         sessionStorage.setItem(OTP_EXPIRES_KEY, String(Date.now() + OTP_TTL_MS));
-        alert(`(ຈຳລອງ) ລະຫັດ OTP ຂອງທ່ານແມ່ນ: ${code}\n(ໃຊ້ໄດ້ 5 ນາທີ)`);
+        sessionStorage.setItem(PENDING_PHONE_KEY, phone);
+        setDevOtpCode(code); // ສະແດງເທິງໜ້າຈໍແທນ alert()
         resolve();
       }, 500);
     });
@@ -66,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!savedCode || Date.now() > expiresAt) {
       sessionStorage.removeItem(OTP_KEY);
       sessionStorage.removeItem(OTP_EXPIRES_KEY);
+      setDevOtpCode(null);
       throw new Error("ລະຫັດ OTP ໝົດອາຍຸແລ້ວ ກະລຸນາຂໍລະຫັດໃໝ່");
     }
     if (code !== savedCode) {
@@ -73,13 +86,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     await signInAnonymously(auth);
+
+    const pendingPhone = sessionStorage.getItem(PENDING_PHONE_KEY);
+    if (pendingPhone) {
+      localStorage.setItem(CUSTOMER_PHONE_KEY, pendingPhone);
+      setCustomerPhone(pendingPhone);
+      sessionStorage.removeItem(PENDING_PHONE_KEY);
+    }
+
     sessionStorage.removeItem(OTP_KEY);
     sessionStorage.removeItem(OTP_EXPIRES_KEY);
+    setDevOtpCode(null);
   };
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, logout, sendPhoneOtp, confirmPhoneOtp }}
+      value={{
+        user,
+        loading,
+        customerPhone,
+        devOtpCode,
+        login,
+        logout,
+        sendPhoneOtp,
+        confirmPhoneOtp,
+      }}
     >
       {children}
     </AuthContext.Provider>

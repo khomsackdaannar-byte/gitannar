@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { doc, getDoc } from "firebase/firestore";
 import { HardHat } from "lucide-react";
+import { db } from "../../firebase/Firebase";
 import { techList } from "../../Types/Technician";
 import "./TechnicianLogin.css";
 
@@ -8,28 +10,51 @@ function TechnicianLogin() {
   const navigate = useNavigate();
   const [phone, setPhone] = useState("");
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  // ★ ເພີ່ມ: ຕອນເປີດໜ້ານີ້ ໃຫ້ເຊັກກ່ອນວ່າເຄີຍ login ໄວ້ບໍ
+  // ★ ຕອນເປີດໜ້ານີ້ ໃຫ້ເຊັກກ່ອນວ່າເຄີຍ login ໄວ້ບໍ
   useEffect(() => {
     const savedPhone = localStorage.getItem("tech_logged_in_phone");
     if (savedPhone) {
-      const tech = techList.find((t) => t.phone === savedPhone);
-      if (tech) {
-        navigate(`/technician-home/${encodeURIComponent(tech.phone)}`, { replace: true });
-      }
+      navigate(`/technician-home/${encodeURIComponent(savedPhone)}`, { replace: true });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     const value = phone.trim();
-    const tech = techList.find((t) => t.phone === value);
-    if (!tech) {
-      setErrorText("ບໍ່ພົບເບີໂທນີ້ໃນລະບົບຊ່າງ");
+    setErrorText(null);
+
+    if (!value) {
+      setErrorText("ກະລຸນາໃສ່ເບີໂທ");
       return;
     }
-    // ★ ເພີ່ມ: ຈື່ເບີໂທໄວ້ໃນເຄື່ອງ ຫລັງ login ສຳເລັດ
-    localStorage.setItem("tech_logged_in_phone", tech.phone);
-    navigate(`/technician-home/${encodeURIComponent(tech.phone)}`, { replace: true });
+
+    setLoading(true);
+    try {
+      // ຫາໃນ techList ຄົງທີ່ກ່ອນ
+      const staticTech = techList.find((t) => t.phone === value);
+      if (staticTech) {
+        localStorage.setItem("tech_logged_in_phone", staticTech.phone);
+        navigate(`/technician-home/${encodeURIComponent(staticTech.phone)}`, { replace: true });
+        return;
+      }
+
+      // ຖ້າບໍ່ພົບ, ໄປຫາໃນ Firestore (ຊ່າງທີ່ລົງທະບຽນຜ່ານແອັບ)
+      const snap = await getDoc(doc(db, "technicians", value));
+      if (snap.exists()) {
+        localStorage.setItem("tech_logged_in_phone", value);
+        navigate(`/technician-home/${encodeURIComponent(value)}`, { replace: true });
+        return;
+      }
+
+      setErrorText("ບໍ່ພົບເບີໂທນີ້ໃນລະບົບຊ່າງ");
+    } catch (err) {
+      console.error(err);
+      setErrorText("ເກີດຂໍ້ຜິດພາດ, ກະລຸນາລອງໃໝ່");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGoToRegister = () => {
@@ -61,8 +86,8 @@ function TechnicianLogin() {
         />
         {errorText && <p className="tech-login-error">{errorText}</p>}
 
-        <button className="tech-login-submit" onClick={handleLogin}>
-          ເຂົ້າສູ່ລະບົບ
+        <button className="tech-login-submit" onClick={handleLogin} disabled={loading}>
+          {loading ? "ກຳລັງກວດສອບ..." : "ເຂົ້າສູ່ລະບົບ"}
         </button>
 
         <button className="tech-login-register" onClick={handleGoToRegister}>
