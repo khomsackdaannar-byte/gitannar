@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { ArrowLeft, Send } from "lucide-react";
 import { db, auth } from "../../firebase/Firebase";
-import { useAuth } from "../../context/AuthContext"; // ປັບ path ນີ້ໃຫ້ກົງກັບໂຄງສ້າງຕົວຈິງຂອງທ່ານ
+import { useAuth } from "../../context/Authcontext"; // ປັບ path ນີ້ໃຫ້ກົງກັບໂຄງສ້າງຕົວຈິງຂອງທ່ານ
 import { techList, type Technician } from "../../Types/Technician";
 import "./Chat.css";
 
