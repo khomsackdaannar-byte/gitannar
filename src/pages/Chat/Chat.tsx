@@ -12,7 +12,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
-import { ArrowLeft, Send, Camera, Image as ImageIcon, MapPin, X, Delete, Globe } from "lucide-react";
+import { ArrowLeft, Send, Camera, Image as ImageIcon, MapPin, X, Delete, Globe, Mic, Trash2 } from "lucide-react";
 import { db, auth, storage } from "../../firebase/Firebase";
 import { useAuth } from "../../context/Authcontext";
 import { techList, type Technician } from "../../Types/Technician";
@@ -33,9 +33,10 @@ L.Icon.Default.mergeOptions({
 
 interface ChatMessage {
   id: string;
-  type?: "text" | "image" | "location";
+  type?: "text" | "image" | "location" | "audio";
   text?: string;
   imageUrl?: string;
+  audioUrl?: string;
   lat?: number;
   lng?: number;
   senderId: string;
@@ -221,6 +222,13 @@ function Chat() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
+
+  // ---- Voice recording state ----
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ---- Virtual keyboard state ----
   const [showKeyboard, setShowKeyboard] = useState(false);
@@ -424,6 +432,101 @@ function Chat() {
     if (file) uploadAndSendImage(file);
   };
 
+  // ---------------- Voice recording ----------------
+
+  const uploadAndSendAudio = async (blob: Blob) => {
+    if (!tech || chatRoomId === "unknown") return;
+    setUploading(true);
+    try {
+      const path = `chat-audio/${chatRoomId}/${Date.now()}.webm`;
+      const fileRef = storageRef(storage, path);
+      await uploadBytes(fileRef, blob);
+      const url = await getDownloadURL(fileRef);
+
+      const chatDocRef = doc(db, "chats", chatRoomId);
+      await addDoc(collection(chatDocRef, "messages"), {
+        type: "audio",
+        audioUrl: url,
+        senderId: myId,
+        timestamp: serverTimestamp(),
+      });
+      await touchChatRoomMeta("🎤 ຂໍ້ຄວາມສຽງ");
+    } catch (err: any) {
+      console.error("Audio upload failed:", err);
+      alert(
+        "ສົ່ງສຽງບໍ່ສຳເລັດ: " +
+          (err?.code || err?.message || "ບໍ່ຮູ້ສາເຫດ") +
+          "\n\nກະລຸນາກວດ Firebase Storage rules ຫຼືເບິ່ງ console (F12)."
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const startRecording = async () => {
+    if (!tech || chatRoomId === "unknown") return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      alert("ອຸປະກອນ/ຕົວທ່ອງເວັບນີ້ບໍ່ຮອງຮັບການບັນທຶກສຽງ");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordSeconds(0);
+      recordTimerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+    } catch (err) {
+      console.error(err);
+      alert("ບໍ່ສາມາດເຂົ້າເຖິງໄມໂຄຣໂຟນໄດ້ ກະລຸນາອະນຸຍາດການໃຊ້ໄມໂຄຣໂຟນ");
+    }
+  };
+
+  const stopRecordingAndSend = () => {
+    const mediaRecorder = mediaRecorderRef.current;
+    if (!mediaRecorder) return;
+
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+
+    mediaRecorder.onstop = async () => {
+      mediaRecorder.stream.getTracks().forEach((t) => t.stop());
+      setIsRecording(false);
+      const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+      audioChunksRef.current = [];
+      if (blob.size > 0) await uploadAndSendAudio(blob);
+    };
+    mediaRecorder.stop();
+  };
+
+  const cancelRecording = () => {
+    const mediaRecorder = mediaRecorderRef.current;
+    if (mediaRecorder) {
+      mediaRecorder.onstop = () => {
+        mediaRecorder.stream.getTracks().forEach((t) => t.stop());
+      };
+      if (mediaRecorder.state !== "inactive") mediaRecorder.stop();
+    }
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+    audioChunksRef.current = [];
+    setIsRecording(false);
+  };
+
+  const formatRecordTime = (s: number) =>
+    `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
   // ---------------- Location picker (Leaflet) ----------------
 
   const DEFAULT_CENTER: [number, number] = [17.9757, 102.6331]; // Vientiane fallback
@@ -541,6 +644,12 @@ function Chat() {
 
   return (
     <div className="chat-page">
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+      `}</style>
       <header className="chat-appbar">
         <button className="detail-back" onClick={() => navigate(-1)}>
           <ArrowLeft size={20} />
@@ -587,6 +696,12 @@ function Chat() {
                   <MapPin size={16} />
                   ເບິ່ງຕໍາແໜ່ງໃນແຜນທີ່
                 </a>
+              ) : msg.type === "audio" && msg.audioUrl ? (
+                <audio
+                  controls
+                  src={msg.audioUrl}
+                  style={{ maxWidth: 230, height: 36 }}
+                />
               ) : (
                 <div className={`chat-bubble ${isMe ? "chat-bubble--me" : ""}`}>{msg.text}</div>
               )}
@@ -614,45 +729,100 @@ function Chat() {
       />
 
       <div className="chat-input-bar">
-        <button
-          type="button"
-          style={iconBtnStyle}
-          onClick={() => cameraInputRef.current?.click()}
-          disabled={uploading}
-          title="ຖ່າຍຮູບ"
-        >
-          <Camera size={20} />
-        </button>
-        <button
-          type="button"
-          style={iconBtnStyle}
-          onClick={() => galleryInputRef.current?.click()}
-          disabled={uploading}
-          title="ສົ່ງຮູບ"
-        >
-          <ImageIcon size={20} />
-        </button>
-        <button
-          type="button"
-          style={iconBtnStyle}
-          onClick={openMapPicker}
-          disabled={uploading}
-          title="ເລືອກຕໍາແໜ່ງ"
-        >
-          <MapPin size={20} />
-        </button>
-        <input
-          ref={textInputRef}
-          type="text"
-          placeholder="ພິມຂໍ້ຄວາມ..."
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onFocus={() => setShowKeyboard(true)}
-          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-        />
-        <button className="chat-send" onClick={sendMessage} disabled={uploading}>
-          <Send size={18} color="#fff" />
-        </button>
+        {isRecording ? (
+          <>
+            <button
+              type="button"
+              style={iconBtnStyle}
+              onClick={cancelRecording}
+              title="ຍົກເລີກ"
+            >
+              <Trash2 size={20} color="#e05353" />
+            </button>
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                color: "#e05353",
+                fontWeight: 600,
+              }}
+            >
+              <span
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  background: "#e05353",
+                  display: "inline-block",
+                  animation: "pulse 1s infinite",
+                }}
+              />
+              ກຳລັງບັນທຶກສຽງ... {formatRecordTime(recordSeconds)}
+            </div>
+            <button
+              className="chat-send"
+              onClick={stopRecordingAndSend}
+              disabled={uploading}
+              title="ສົ່ງສຽງ"
+            >
+              <Send size={18} color="#fff" />
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              style={iconBtnStyle}
+              onClick={() => cameraInputRef.current?.click()}
+              disabled={uploading}
+              title="ຖ່າຍຮູບ"
+            >
+              <Camera size={20} />
+            </button>
+            <button
+              type="button"
+              style={iconBtnStyle}
+              onClick={() => galleryInputRef.current?.click()}
+              disabled={uploading}
+              title="ສົ່ງຮູບ"
+            >
+              <ImageIcon size={20} />
+            </button>
+            <button
+              type="button"
+              style={iconBtnStyle}
+              onClick={openMapPicker}
+              disabled={uploading}
+              title="ເລືອກຕໍາແໜ່ງ"
+            >
+              <MapPin size={20} />
+            </button>
+            <button
+              type="button"
+              style={iconBtnStyle}
+              onClick={startRecording}
+              disabled={uploading}
+              title="ບັນທຶກສຽງ"
+            >
+              <Mic size={20} />
+            </button>
+            <input
+              ref={textInputRef}
+              type="text"
+              placeholder="ພິມຂໍ້ຄວາມ..."
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onFocus={() => setShowKeyboard(true)}
+              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+            />
+            <button className="chat-send" onClick={sendMessage} disabled={uploading}>
+              <Send size={18} color="#fff" />
+            </button>
+          </>
+        )}
       </div>
 
       {showKeyboard && (
