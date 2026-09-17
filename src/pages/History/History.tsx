@@ -1,8 +1,8 @@
 import { Clock } from "lucide-react";
 import BottomNav from "../../component/BottomNav/BottomNav";
+import { useLanguage } from "../../context/LanguageContext";
 import "./History.css";
 
-// ໂຄງສ້າງຂໍ້ມູນປະຫວັດ (ໄວ້ຮັບຂໍ້ມູນຈິງຈາກ Firestore ໃນອະນາຄົດ)
 interface HistoryItem {
   id: string;
   techName: string;
@@ -12,13 +12,13 @@ interface HistoryItem {
 }
 
 function History() {
-  // TODO: ໃນອະນາຄົດ ໃຫ້ດຶງຂໍ້ມູນຈິງຈາກ Firestore ແທນ array ຫວ່າງນີ້
+  const { t } = useLanguage();
   const items: HistoryItem[] = [];
 
   return (
     <div className="history-page">
       <header className="history-appbar">
-        <h1>ປະຫວັດການໃຊ້ບໍລິການ</h1>
+        <h1>{t.history.title}</h1>
       </header>
 
       {items.length === 0 ? (
@@ -26,8 +26,8 @@ function History() {
           <div className="history-empty__icon">
             <Clock size={36} />
           </div>
-          <p>ຍັງບໍ່ມີປະຫວັດ</p>
-          <span>ປະຫວັດການໃຊ້ບໍລິການຂອງທ່ານຈະສະແດງຢູ່ນີ້</span>
+          <p>{t.history.empty}</p>
+          <span>{t.history.emptyDesc}</span>
         </div>
       ) : (
         <div className="history-list">
@@ -46,7 +46,7 @@ function History() {
                         : "history-item__status--cancelled"
                     }`}
                   >
-                    {item.status === "done" ? "ສຳເລັດ" : "ຍົກເລີກ"}
+                    {item.status === "done" ? t.history.done : t.history.cancelled}
                   </span>
                 </div>
                 <p className="history-item__type">{item.techType}</p>

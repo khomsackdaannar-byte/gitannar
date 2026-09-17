@@ -38,11 +38,11 @@ function CustomerDetail() {
   const navigate = useNavigate();
   const [customer, setCustomer] = useState<CustomerData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showCallDialog, setShowCallDialog] = useState(false);
 
-  // chatRoomId ຕ້ອງສ້າງແບບດຽວກັນກັບຝັ່ງລູກຄ້າ (Chat.tsx): `${techPhone}_${customerUid}`
-  const chatRoomId =
-    techPhone && customerUid ? `${techPhone}_${customerUid}` : null;
+  // ໝາຍເຫດ: ຄ່າ customerUid ທີ່ໄດ້ຈາກ URL ນີ້ ແມ່ນ room.id ຄົບຖ້ວນທີ່ສົ່ງມາຈາກ
+  // TechnicianHome.tsx ຢູ່ແລ້ວ (ຄື "techPhone_customerPhone") ບໍ່ໄດ້ແມ່ນເບີໂທລູກຄ້າດ່ຽວໆ
+  // ດັ່ງນັ້ນຫ້າມນຳມາປະກອບຄືນໃໝ່ກັບ techPhone ອີກຄັ້ງ (ຈະເຮັດໃຫ້ id ຊ້ຳກັນ/ຜິດ)
+  const chatRoomId = customerUid ? decodeURIComponent(customerUid) : null;
 
   useEffect(() => {
     if (!chatRoomId) {
@@ -118,10 +118,18 @@ function CustomerDetail() {
         </div>
 
         <div className="detail-actions">
-          <button className="btn btn--primary" onClick={() => setShowCallDialog(true)}>
+          <a
+            className="btn btn--primary"
+            href={customer.phone ? `tel:${customer.phone}` : undefined}
+            style={
+              !customer.phone
+                ? { pointerEvents: "none", opacity: 0.5 }
+                : { textDecoration: "none", display: "inline-flex" }
+            }
+          >
             <Phone size={18} />
             ໂທຫາລູກຄ້າ
-          </button>
+          </a>
           <button
             className="btn btn--outline"
             onClick={() => {
@@ -138,18 +146,6 @@ function CustomerDetail() {
           </button>
         </div>
       </div>
-
-      {showCallDialog && (
-        <div className="dialog-overlay" onClick={() => setShowCallDialog(false)}>
-          <div className="dialog-box" onClick={(e) => e.stopPropagation()}>
-            <h3>ໂທຫາລູກຄ້າ</h3>
-            <p>ກຳລັງໂທຫາ {customer.phone || "ບໍ່ມີເບີໂທ"}</p>
-            <button className="btn btn--primary" onClick={() => setShowCallDialog(false)}>
-              OK
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

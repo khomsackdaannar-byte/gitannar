@@ -6,14 +6,16 @@ import { db, auth } from "../../firebase/Firebase";
 import { techList, type Technician } from "../../Types/Technician";
 import { useAuth } from "../../context/Authcontext";
 import { useLanguage } from "../../context/LanguageContext";
-import { useNewMessageAlert } from "../../hooks/useNewMessageAlert"; // ວາງໄຟລ໌ hook ໄວ້ທີ່ src/hooks/
+import { useNewMessageAlert } from "../../hooks/useNewMessageAlert";
 import "./technicianhome.css";
 
 interface ChatRoom {
   id: string;
   lastMessage: string;
   customerName: string;
-  customerUid: string;
+  lastSenderId?: string;
+  lastTimestamp?: { seconds: number };
+  techLastRead?: { seconds: number };
 }
 
 interface Review {
@@ -62,6 +64,13 @@ function resizeImageToBase64(file: File): Promise<string> {
   });
 }
 
+function isUnread(room: ChatRoom, myId: string) {
+  if (!room.lastSenderId || room.lastSenderId === myId) return false;
+  if (!room.lastTimestamp) return false;
+  if (!room.techLastRead) return true;
+  return room.lastTimestamp.seconds > room.techLastRead.seconds;
+}
+
 function TechnicianHome() {
   const { phone } = useParams<{ phone: string }>();
   const navigate = useNavigate();
@@ -77,13 +86,11 @@ function TechnicianHome() {
   const [showPhotoPreview, setShowPhotoPreview] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ===== ທີ່ຢູ່ (ແກ້ໄຂໄດ້ໂດຍຊ່າງເອງ) =====
   const [address, setAddress] = useState("");
   const [editingAddress, setEditingAddress] = useState(false);
   const [addressInput, setAddressInput] = useState("");
   const [savingAddress, setSavingAddress] = useState(false);
 
-  // ===== ຣີວິວ =====
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(true);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
@@ -91,7 +98,6 @@ function TechnicianHome() {
   const decodedPhone = decodeURIComponent(phone ?? "");
   const staticTech = techList.find((t) => t.phone === decodedPhone);
 
-  // ===== ຂໍ້ມູນຊ່າງ (ຫາໃນ techList ຄົງທີ່ກ່ອນ, ຖ້າບໍ່ພົບໃຫ້ໄປອ່ານ Firestore) =====
   const [tech, setTech] = useState<Technician | null>(staticTech ?? null);
   const [techLoading, setTechLoading] = useState(!staticTech);
 
@@ -148,7 +154,6 @@ function TechnicianHome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [decodedPhone]);
 
-  // ໂຫລດ photoURL + address ຈາກ technicians/{phone}
   useEffect(() => {
     if (!tech) return;
     const unsubscribe = onSnapshot(doc(db, "technicians", tech.phone), (snap) => {
@@ -161,7 +166,6 @@ function TechnicianHome() {
     return () => unsubscribe();
   }, [tech]);
 
-  // ໂຫລດລາຍການແຊັດ
   useEffect(() => {
     if (!tech) return;
     const q = query(
@@ -172,12 +176,17 @@ function TechnicianHome() {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const docs = snapshot.docs.map((d) => ({
-          id: d.id,
-          lastMessage: d.data().lastMessage ?? "",
-          customerName: d.data().customerName ?? "ລູກຄ້າ",
-          customerUid: d.data().customerUid ?? "",
-        }));
+        const docs = snapshot.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            lastMessage: data.lastMessage ?? "",
+            customerName: data.customerName ?? "ລູກຄ້າ",
+            lastSenderId: data.lastSenderId ?? undefined,
+            lastTimestamp: data.lastTimestamp ?? undefined,
+            techLastRead: data.techLastRead ?? undefined,
+          } as ChatRoom;
+        });
         setRooms(docs);
         setLoading(false);
       },
@@ -189,7 +198,6 @@ function TechnicianHome() {
     return () => unsubscribe();
   }, [tech]);
 
-  // ໂຫລດຣີວິວ (collection "reviews", field technicianPhone)
   useEffect(() => {
     if (!tech) return;
     const q = query(
@@ -210,7 +218,6 @@ function TechnicianHome() {
         setReviewsLoading(false);
       },
       (err) => {
-        // ຖ້າຍັງບໍ່ມີ index ຫຼືຍັງບໍ່ມີ collection ນີ້ - ບໍ່ໃຫ້ crash, ສະແດງວ່າຍັງບໍ່ມີຣີວິວແທນ
         console.warn("reviews query error:", err.message);
         setReviewsError(err.message);
         setReviewsLoading(false);
@@ -224,9 +231,10 @@ function TechnicianHome() {
       ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
       : null;
 
-  // ===== ແຈ້ງເຕືອນ global: ມີລູກຄ້າທັກມາ ເຖິງແມ່ນຢູ່ໜ້ານີ້ ບໍ່ໄດ້ເປີດແຊັດເຂົ້າໄປໃນຫ້ອງໃດຫ້ອງນຶ່ງ =====
-  const myId = auth.currentUser?.uid ?? "anonymous";
-  useNewMessageAlert("techPhone", tech?.phone, myId, (room) => room.customerName ?? "");
+  const techMyId = tech ? `tech_${tech.phone}` : "anonymous";
+  useNewMessageAlert("techPhone", tech?.phone, techMyId, (room) => room.customerName ?? "");
+
+  const hasUnread = rooms.some((r) => isUnread(r, techMyId));
 
   const handlePickPhoto = () => {
     fileInputRef.current?.click();
@@ -314,7 +322,6 @@ function TechnicianHome() {
         </button>
       </header>
 
-      {/* ===== ແທັບ: ແຊັດລູກຄ້າ ===== */}
       {activeTab === "chat" && (
         <div className="tech-home-list">
           {error && <p className="tech-home-status">ຜິດພາດ: {error}</p>}
@@ -322,29 +329,70 @@ function TechnicianHome() {
           {!loading && !error && rooms.length === 0 && (
             <p className="tech-home-status">{t.technicianHome.noChats}</p>
           )}
-          {rooms.map((room) => (
-            <div
-              key={room.id}
-              className="tech-home-item"
-              onClick={() =>
-                navigate(
-                  `/technician-customer/${encodeURIComponent(tech.phone)}/${encodeURIComponent(room.customerUid)}`
-                )
-              }
-            >
-              <div className="tech-home-avatar">
-                <User size={20} color="#fff" />
+          {rooms.map((room) => {
+            const unread = isUnread(room, techMyId);
+            return (
+              <div
+                key={room.id}
+                className="tech-home-item"
+                onClick={() =>
+                  navigate(
+                    `/technician-customer/${encodeURIComponent(tech.phone)}/${encodeURIComponent(room.id)}`
+                  )
+                }
+              >
+                <div className="tech-home-avatar" style={{ position: "relative" }}>
+                  <User size={20} color="#fff" />
+                  {unread && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        right: 0,
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        background: "#e0433d",
+                        border: "2px solid #fff",
+                      }}
+                    />
+                  )}
+                </div>
+                <div className="tech-home-item__text">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <p className="tech-home-item__name" style={{ fontWeight: unread ? 700 : undefined }}>
+                      {room.customerName}
+                    </p>
+                    {unread && (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: "#fff",
+                          background: "#5bb8c4",
+                          borderRadius: 10,
+                          padding: "2px 8px",
+                          whiteSpace: "nowrap",
+                          marginLeft: 8,
+                        }}
+                      >
+                        {t.technicianHome.unread}
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    className="tech-home-item__msg"
+                    style={{ fontWeight: unread ? 600 : undefined, color: unread ? "#1c1c1c" : undefined }}
+                  >
+                    {room.lastMessage}
+                  </p>
+                </div>
               </div>
-              <div className="tech-home-item__text">
-                <p className="tech-home-item__name">{room.customerName}</p>
-                <p className="tech-home-item__msg">{room.lastMessage}</p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* ===== ຂໍ້ມູນຊ່າງ ===== */}
       {activeTab === "profile" && (
         <div className="tech-home-profile-tab">
           <div className="tech-home-profile-upload">
@@ -383,7 +431,6 @@ function TechnicianHome() {
             />
           </div>
 
-          {/* ===== ຂໍ້ມູນຕິດຕໍ່ ===== */}
           <div className="tech-home-info-card">
             <div className="tech-home-info-row">
               <Phone size={16} color="#3d8983" />
@@ -417,7 +464,6 @@ function TechnicianHome() {
             </div>
           </div>
 
-          {/* ===== ຣີວິວ ===== */}
           <div className="tech-home-reviews">
             <h3>ຣີວິວຈາກລູກຄ້າ</h3>
             {reviewsLoading && <p className="tech-home-status">{t.technicianHome.loading}</p>}
@@ -449,13 +495,27 @@ function TechnicianHome() {
         </div>
       )}
 
-      {/* ===== Bottom Tab Bar ===== */}
       <div className="tech-home-tabbar">
         <button
           className={`tech-home-tab ${activeTab === "chat" ? "tech-home-tab--active" : ""}`}
           onClick={() => setActiveTab("chat")}
         >
-          <MessageCircle size={20} />
+          <span style={{ position: "relative", display: "inline-flex" }}>
+            <MessageCircle size={20} />
+            {hasUnread && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: -2,
+                  right: -4,
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: "#e0433d",
+                }}
+              />
+            )}
+          </span>
           <span>{t.technicianHome.tabChat}</span>
         </button>
         <button

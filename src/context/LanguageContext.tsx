@@ -4,9 +4,6 @@ export type LangKey = "lo" | "th" | "en";
 
 const LANG_STORAGE_KEY = "app_lang";
 
-// ==================== ຂໍ້ຄວາມແປ ທົ່ວທັງແອັບ ====================
-// ຈັດແບ່ງເປັນໝວດຕາມໜ້າ (namespace) ເພື່ອງ່າຍຕໍ່ການເພີ່ມໜ້າໃໝ່ພາຍຫຼັງ
-// ຖ້າຢາກເພີ່ມໜ້າໃໝ່: ເພີ່ມ namespace ໃໝ່ຢູ່ນີ້ ໃນ 3 ພາສາ (lo, th, en) ໃຫ້ຄົບ
 export const translations = {
   lo: {
     welcome: {
@@ -16,6 +13,12 @@ export const translations = {
       subtitle: "ຄົ້ນຫາຊ່າງໃກ້ບ້ານທ່ານໄດ້ໄວ ປອດໄພ ແລະ ເຊື່ອຖືໄດ້",
       start: "ເລີ່ມຕົ້ນ",
       checking: "ກຳລັງກວດສອບ...",
+    },
+    nav: {
+      home: "ໜ້າຫຼັກ",
+      bookings: "ແຊັດ",
+      history: "ປະຫວັດ",
+      profile: "ໂປຣໄຟລ໌",
     },
     home: {
       title: "ຊ່າງດ່ວນ",
@@ -56,6 +59,7 @@ export const translations = {
       empty: "ຍັງບໍ່ມີການແຊັດ",
       emptyDesc: "ເລີ່ມແຊັດຫາຊ່າງທີ່ໜ້າຫຼັກໄດ້ເລີຍ",
       startConvo: "ເລີ່ມການສົນທະນາ...",
+      unread: "ຍັງບໍ່ອ່ານ",
     },
     technicianHome: {
       chatListTitle: (name: string) => `ລາຍການແຊັດ (${name})`,
@@ -69,6 +73,7 @@ export const translations = {
       logoutConfirm: "ທ່ານແນ່ໃຈບໍ່ວ່າຈະອອກຈາກລະບົບ?",
       cancel: "ຍົກເລີກ",
       logout: "ອອກຈາກລະບົບ",
+      unread: "ຍັງບໍ່ອ່ານ",
     },
     profile: {
       appTitle: "ຊ່າງດ່ວນ",
@@ -158,6 +163,20 @@ export const translations = {
     },
   },
   th: {
+    welcome: {
+      skip: "ข้าม",
+      titleLine1: "ยินดีต้อนรับสู่",
+      titleAccent: "ช่างด่วน",
+      subtitle: "ค้นหาช่างใกล้บ้านคุณได้อย่างรวดเร็ว ปลอดภัย และเชื่อถือได้",
+      start: "เริ่มต้น",
+      checking: "กำลังตรวจสอบ...",
+    },
+    nav: {
+      home: "หน้าหลัก",
+      bookings: "แชท",
+      history: "ประวัติ",
+      profile: "โปรไฟล์",
+    },
     chooseRole: {
       title: "คุณคือใคร?",
       subtitle: "เลือกประเภทบัญชีเพื่อลงทะเบียน",
@@ -215,14 +234,6 @@ export const translations = {
       alreadyHave: "มีบัญชีแล้ว?",
       loginLink: "เข้าสู่ระบบ",
     },
-    welcome: {
-      skip: "ข้าม",
-      titleLine1: "ยินดีต้อนรับสู่",
-      titleAccent: "ช่างด่วน",
-      subtitle: "ค้นหาช่างใกล้บ้านคุณได้อย่างรวดเร็ว ปลอดภัย และเชื่อถือได้",
-      start: "เริ่มต้น",
-      checking: "กำลังตรวจสอบ...",
-    },
     home: {
       title: "ช่างด่วน",
       searchPlaceholder: "ค้นหาชื่อ หรือ พื้นที่...",
@@ -262,6 +273,7 @@ export const translations = {
       empty: "ยังไม่มีการแชท",
       emptyDesc: "เริ่มแชทหาช่างที่หน้าหลักได้เลย",
       startConvo: "เริ่มการสนทนา...",
+      unread: "ยังไม่อ่าน",
     },
     technicianHome: {
       chatListTitle: (name: string) => `รายการแชท (${name})`,
@@ -275,6 +287,7 @@ export const translations = {
       logoutConfirm: "คุณแน่ใจหรือไม่ว่าจะออกจากระบบ?",
       cancel: "ยกเลิก",
       logout: "ออกจากระบบ",
+      unread: "ยังไม่อ่าน",
     },
     profile: {
       appTitle: "ช่างด่วน",
@@ -307,6 +320,20 @@ export const translations = {
     },
   },
   en: {
+    welcome: {
+      skip: "Skip",
+      titleLine1: "Welcome to",
+      titleAccent: "Chang Duan",
+      subtitle: "Find trusted technicians near you — fast and safe.",
+      start: "Get Started",
+      checking: "Checking...",
+    },
+    nav: {
+      home: "Home",
+      bookings: "Chats",
+      history: "History",
+      profile: "Profile",
+    },
     chooseRole: {
       title: "Who are you?",
       subtitle: "Choose an account type to register",
@@ -364,14 +391,6 @@ export const translations = {
       alreadyHave: "Already have an account?",
       loginLink: "Log In",
     },
-    welcome: {
-      skip: "Skip",
-      titleLine1: "Welcome to",
-      titleAccent: "Chang Duan",
-      subtitle: "Find trusted technicians near you — fast and safe.",
-      start: "Get Started",
-      checking: "Checking...",
-    },
     home: {
       title: "Chang Duan",
       searchPlaceholder: "Search name or area...",
@@ -411,6 +430,7 @@ export const translations = {
       empty: "No chats yet",
       emptyDesc: "Start chatting with a technician from the home page",
       startConvo: "Start the conversation...",
+      unread: "Unread",
     },
     technicianHome: {
       chatListTitle: (name: string) => `Chats (${name})`,
@@ -424,6 +444,7 @@ export const translations = {
       logoutConfirm: "Are you sure you want to log out?",
       cancel: "Cancel",
       logout: "Log Out",
+      unread: "Unread",
     },
     profile: {
       appTitle: "Chang Duan",

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, Zap, Wrench, Scissors, Car, Smartphone, ArrowLeft, Bell, MapPin, Star, ShieldCheck, Snowflake, ChevronRight } from "lucide-react";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, doc, onSnapshot } from "firebase/firestore";
 import { db, auth } from "../../firebase/Firebase";
 import { TechCategory, TechCategoryType, techList, type Technician } from "../../Types/Technician";
 import { TechnicianListView } from "../../component/TechnicianCard/TechnicianCard";
@@ -16,7 +16,6 @@ function Home() {
   const photoMap = useTechnicianPhotos();
   const { t } = useLanguage();
 
-  // ລາຍການໝວດໝູ່ - ຂໍ້ຄວາມແປຢູ່ໃນ LanguageContext, icon/cls ຄົງທີ່
   const categories: {
     category: TechCategoryType;
     label: string;
@@ -30,9 +29,21 @@ function Home() {
     { category: TechCategory.phoneRepair, label: t.home.categories.phoneRepair, icon: Smartphone, cls: "phone_repair" },
   ];
 
-  const displayName = auth.currentUser?.displayName || "ທ່ານ";
+const [displayName, setDisplayName] = useState<string>("ທ່ານ");
 
-  // ຊ່າງທີ່ລົງທະບຽນຜ່ານແອັບ (ບັນທຶກໄວ້ໃນ Firestore collection "technicians")
+useEffect(() => {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+
+  const unsubscribe = onSnapshot(doc(db, "users", uid), (snap) => {
+    const name = snap.exists() ? (snap.data().name as string) : "";
+    setDisplayName(name && name.trim() !== "" ? name : "ທ່ານ");
+  });
+
+  return () => unsubscribe();
+}, []);
+
+
   const [registeredTechs, setRegisteredTechs] = useState<Technician[]>([]);
 
   useEffect(() => {
@@ -73,7 +84,6 @@ function Home() {
     return Array.from(merged.values());
   }, [registeredTechs]);
 
-  // ຊ່າງແນະນຳ (ຄະແນນສູງສຸດ 4 ຄົນ) ສະແດງຢູ່ໜ້າຫຼັກ
   const featuredTechs = useMemo(() => {
     return [...allTechs]
       .map((t) => ({ ...t, image: photoMap[t.phone] || t.image }))
@@ -109,39 +119,36 @@ function Home() {
     <div className="home-page">
       {view === "categories" && (
         <>
-          {/* ===== Header ===== */}
           <header className="home-hero">
             <div className="home-hero__deco" />
             <div className="home-hero__top">
               <div className="home-hero__location">
                 <MapPin size={14} />
-                <span>ນະຄອນຫຼວງວຽງຈັນ</span>
+                <span>{t.home.location}</span>
               </div>
-              <button className="home-bell" aria-label="ແຈ້ງເຕືອນ">
+              <button className="home-bell" aria-label="Notifications">
                 <Bell size={19} />
                 <span className="home-bell__dot" />
               </button>
             </div>
 
             <div className="home-hero__greet">
-              ສະບາຍດີ, {displayName} <span className="home-hero__wave">👋</span>
+              {t.home.greet(displayName)} <span className="home-hero__wave">👋</span>
             </div>
           </header>
 
           <div className="home-content">
-            {/* ===== Banner ໂປຼໂມຊັນ ===== */}
             <div className="home-banner">
               <div className="home-banner__badge">
-                <ShieldCheck size={13} /> ບໍລິການປອດໄພ
+                <ShieldCheck size={13} /> {t.home.banner.badge}
               </div>
-              <h2>ບໍລິການຊ່າງດ່ວນ</h2>
-              <p>ຊ່າງເຂົ້າເຮືອນທ່ານ ວ່ອງໄວ ໄວ້ໃຈໄດ້ ພ້ອມສ່ວນຫຼຸດພິເສດ</p>
-              <span className="home-banner__discount">ສ່ວນຫຼຸດ: 10%</span>
+              <h2>{t.home.banner.title}</h2>
+              <p>{t.home.banner.desc}</p>
+              <span className="home-banner__discount">{t.home.banner.discount}</span>
             </div>
 
-            {/* ===== ສິດທິພິເສດ ===== */}
             <div className="home-section-title">
-              <h3>ສິດທິພິເສດສຳລັບທ່ານ</h3>
+              <h3>{t.home.perksTitle}</h3>
             </div>
             <div className="home-perks">
               <div className="home-perk-card">
@@ -149,8 +156,8 @@ function Home() {
                   <ShieldCheck size={22} />
                 </div>
                 <div className="home-perk-card__text">
-                  <p className="home-perk-card__title">ສ່ວນຫຼຸດ 10%</p>
-                  <p className="home-perk-card__desc">ບໍລິການຊ່າງໄຟຟ້າຄັ້ງທຳອິດ</p>
+                  <p className="home-perk-card__title">{t.home.perk1Title}</p>
+                  <p className="home-perk-card__desc">{t.home.perk1Desc}</p>
                 </div>
                 <ChevronRight size={18} color="#b7c2bf" />
               </div>
@@ -159,16 +166,15 @@ function Home() {
                   <Snowflake size={22} />
                 </div>
                 <div className="home-perk-card__text">
-                  <p className="home-perk-card__title">ສ່ວນຫຼຸດ 5%</p>
-                  <p className="home-perk-card__desc">ບໍລິການທຸກປະເພດວັນທຳອິດ</p>
+                  <p className="home-perk-card__title">{t.home.perk2Title}</p>
+                  <p className="home-perk-card__desc">{t.home.perk2Desc}</p>
                 </div>
                 <ChevronRight size={18} color="#b7c2bf" />
               </div>
             </div>
 
-            {/* ===== ໝວດໝູ່ບໍລິການ ===== */}
             <div className="home-section-title">
-              <h3>ໝວດໝູ່ບໍລິການ</h3>
+              <h3>{t.home.categoriesTitle}</h3>
             </div>
             <div className="category-grid">
               {categories.map(({ category, label, icon: Icon, cls }) => (
@@ -185,11 +191,10 @@ function Home() {
               ))}
             </div>
 
-            {/* ===== ບໍລິການແນະນຳ ===== */}
             {featuredTechs.length > 0 && (
               <>
                 <div className="home-section-title">
-                  <h3>ບໍລິການແນະນຳ</h3>
+                  <h3>{t.home.featuredTitle}</h3>
                 </div>
                 <div className="featured-scroll">
                   {featuredTechs.map((tech) => (
@@ -216,7 +221,7 @@ function Home() {
                         <p className="featured-card__name">{tech.name}</p>
                         <p className="featured-card__type">{tech.type}</p>
                         <div className="featured-card__footer">
-                          <span className="featured-card__area">{tech.area || "ວຽງຈັນ"}</span>
+                          <span className="featured-card__area">{tech.area || t.home.location}</span>
                           <ChevronRight size={16} color="#3d8983" />
                         </div>
                       </div>
