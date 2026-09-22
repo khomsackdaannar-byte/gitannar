@@ -8,14 +8,17 @@ import {
   onSnapshot,
   orderBy,
   query,
+  where,
+  limit,
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
 import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
-import { ArrowLeft, Send, Camera, Image as ImageIcon, MapPin, X, Delete, Globe, Mic, Trash2 } from "lucide-react";
+import { ArrowLeft, Send, Camera, Image as ImageIcon, MapPin, X, Delete, Globe, Mic, Trash2, CheckCircle2, Star } from "lucide-react";
 import { db, auth, storage } from "../../firebase/Firebase";
 import { useAuth } from "../../context/Authcontext";
 import { techList, type Technician } from "../../Types/Technician";
+import ReviewModal from "../../component/ReviewModal/ReviewModal";
 import "./Chat.css";
 
 // @ts-ignore - leaflet ships its own JS, types are optional (install @types/leaflet if you want them)
@@ -42,6 +45,8 @@ interface ChatMessage {
   senderId: string;
   timestamp?: { seconds: number };
 }
+
+type BookingStatus = "in_progress" | "pending_confirm" | "completed";
 
 const iconBtnStyle: React.CSSProperties = {
   display: "inline-flex",
@@ -240,6 +245,13 @@ function Chat() {
   const mapInstanceRef = useRef<any>(null);
   const markerInstanceRef = useRef<any>(null);
 
+  // ---- Booking (2-stage confirm) + review state ----
+  const [bookingId, setBookingId] = useState<string | null>(null);
+  const [bookingStatus, setBookingStatus] = useState<BookingStatus | null>(null);
+  const creatingBookingRef = useRef(false);
+  const [marking, setMarking] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+
   const decodedPhone = decodeURIComponent(phone ?? "");
   const staticTech = techList.find((t) => t.phone === decodedPhone);
 
@@ -354,6 +366,53 @@ function Chat() {
     return () => unsubscribe();
   }, [chatRoomId, tech, myId]);
 
+  // ---- ຫາ/ສ້າງ booking ຂອງຫ້ອງແຊັດນີ້ (auto-create ຄັ້ງທຳອິດທີ່ເປີດແຊັດ) ----
+  useEffect(() => {
+    if (!tech || chatRoomId === "unknown") {
+      setBookingId(null);
+      setBookingStatus(null);
+      return;
+    }
+
+    const q = query(
+      collection(db, "bookings"),
+      where("chatId", "==", chatRoomId),
+      orderBy("createdAt", "desc"),
+      limit(1)
+    );
+
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      if (!snapshot.empty) {
+        const d = snapshot.docs[0];
+        setBookingId(d.id);
+        setBookingStatus((d.data().status as BookingStatus) ?? "in_progress");
+        return;
+      }
+
+      // ຍັງບໍ່ມີ booking ໃດເລີຍສຳລັບຫ້ອງແຊັດນີ້ — ສ້າງອັນທຳອິດ (ກັນສ້າງຊ້ຳກັນ)
+      if (creatingBookingRef.current) return;
+      creatingBookingRef.current = true;
+      try {
+        await addDoc(collection(db, "bookings"), {
+          chatId: chatRoomId,
+          techPhone: tech.phone,
+          techName: tech.name,
+          customerId: myId,
+          customerName: auth.currentUser?.displayName || "ລູກຄ້າ",
+          status: "in_progress",
+          createdAt: serverTimestamp(),
+        });
+        // onSnapshot ຈະຮັບຮູ້ doc ໃໝ່ໂດຍອັດຕະໂນມັດ, ບໍ່ຕ້ອງ setState ເອງ
+      } catch (err) {
+        console.error("Auto-create booking failed:", err);
+      } finally {
+        creatingBookingRef.current = false;
+      }
+    });
+
+    return () => unsubscribe();
+  }, [tech, chatRoomId, myId]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -373,6 +432,29 @@ function Chat() {
       },
       { merge: true }
     );
+  };
+
+  // ---- ລູກຄ້າຢືນຢັນຂັ້ນຕອນທີ 2: ຊ່າງແຈ້ງແລ້ວ, ລູກຄ້າຮັບຮອງວ່າສຳເລັດແທ້ ----
+  const confirmJobDone = async () => {
+    if (!bookingId) return;
+    if (!window.confirm("ຢືນຢັນວ່າວຽກນີ້ສຳເລັດແລ້ວແທ້ບໍ່?")) return;
+    setMarking(true);
+    try {
+      await setDoc(
+        doc(db, "bookings", bookingId),
+        {
+          status: "completed",
+          confirmedAt: serverTimestamp(),
+          confirmedBy: myId,
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.error(err);
+      alert("ຢືນຢັນບໍ່ສຳເລັດ ກະລຸນາລອງໃໝ່");
+    } finally {
+      setMarking(false);
+    }
   };
 
   const sendMessage = async () => {
@@ -657,6 +739,97 @@ function Chat() {
         <h1>ແຊັດກັບ {tech.name}</h1>
       </header>
 
+      {/* ---------------- Job status bar (booking-based, 2-stage confirm) ---------------- */}
+      {bookingStatus === "completed" ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "8px 14px",
+            background: "#eaf6f1",
+            borderBottom: "1px solid #d9ece5",
+          }}
+        >
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 13,
+              color: "#2f7d6f",
+              fontWeight: 600,
+            }}
+          >
+            <CheckCircle2 size={15} /> ວຽກສຳເລັດແລ້ວ
+          </span>
+          <button
+            onClick={() => setShowReviewModal(true)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              border: "none",
+              background: "#3d8983",
+              color: "#fff",
+              borderRadius: 20,
+              padding: "6px 12px",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            <Star size={14} /> ໃຫ້ຄະແນນ
+          </button>
+        </div>
+      ) : bookingStatus === "pending_confirm" ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "8px 14px",
+            background: "#fff7e6",
+            borderBottom: "1px solid #f3e6c4",
+          }}
+        >
+          <span style={{ fontSize: 13, color: "#8a6d1f", fontWeight: 600 }}>
+            ຊ່າງແຈ້ງວ່າວຽກສຳເລັດແລ້ວ
+          </span>
+          <button
+            onClick={confirmJobDone}
+            disabled={marking}
+            style={{
+              border: "none",
+              background: "#e0a52e",
+              color: "#fff",
+              borderRadius: 20,
+              padding: "6px 12px",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              opacity: marking ? 0.7 : 1,
+            }}
+          >
+            {marking ? "ກຳລັງຢືນຢັນ..." : "✓ ຢືນຢັນວ່າສຳເລັດ"}
+          </button>
+        </div>
+      ) : (
+        bookingStatus === "in_progress" && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              padding: "6px 14px",
+              background: "#f5f7f6",
+              borderBottom: "1px solid #eceeed",
+            }}
+          >
+            <span style={{ fontSize: 12, color: "#888" }}>ວຽກກຳລັງດຳເນີນການ...</span>
+          </div>
+        )
+      )}
+
       <div className="chat-messages">
         {loading && <p className="chat-loading">ກຳລັງໂຫລດ...</p>}
         {!loading && messages.length === 0 && (
@@ -933,6 +1106,18 @@ function Chat() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ---------------- Review modal (now bound to bookingId) ---------------- */}
+      {showReviewModal && tech && myId !== "anonymous" && bookingId && (
+        <ReviewModal
+          bookingId={bookingId}
+          techPhone={tech.phone}
+          techName={tech.name}
+          customerId={myId}
+          customerName={auth.currentUser?.displayName || "ລູກຄ້າ"}
+          onClose={() => setShowReviewModal(false)}
+        />
       )}
     </div>
   );

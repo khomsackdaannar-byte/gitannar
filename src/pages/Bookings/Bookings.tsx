@@ -1,25 +1,36 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
-import { MessageCircle, RefreshCw } from "lucide-react";
+import { collection, query, where, orderBy, onSnapshot, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { MessageCircle, RefreshCw, CheckCircle2, Star, Clock } from "lucide-react";
 import { db, auth } from "../../firebase/Firebase";
 import { useAuth } from "../../context/Authcontext";
 import { techList } from "../../Types/Technician";
 import { useTechnicianPhotos } from "../../hooks/useTechnicianPhotos";
 import { useLanguage } from "../../context/LanguageContext";
 import BottomNav from "../../component/BottomNav/BottomNav";
+import ReviewModal from "../../component/ReviewModal/ReviewModal";
 import "./Bookings.css";
 
-interface ChatRoom {
+type BookingStatus = "in_progress" | "pending_confirm" | "completed";
+
+interface Booking {
   id: string;
   techPhone: string;
-  lastMessage?: string;
-  lastSenderId?: string;
-  lastTimestamp?: { seconds: number };
-  customerLastRead?: { seconds: number };
+  techName?: string;
+  customerId: string;
+  status: BookingStatus;
+  createdAt?: { seconds: number };
+  reviewId?: string;
 }
 
-function formatChatDate(seconds?: number) {
+interface TechLite {
+  phone: string;
+  name: string;
+  type?: string;
+  image?: string;
+}
+
+function formatBookingDate(seconds?: number) {
   if (!seconds) return "";
   const date = new Date(seconds * 1000);
   const now = new Date();
@@ -27,42 +38,117 @@ function formatChatDate(seconds?: number) {
   if (sameDay) {
     return date.toLocaleTimeString("lo-LA", { hour: "2-digit", minute: "2-digit" });
   }
-  return `${date.getDate()}/${date.getMonth() + 1}`;
+  return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
 }
 
-function isUnread(chat: ChatRoom, myId: string) {
-  if (!chat.lastSenderId || chat.lastSenderId === myId) return false;
-  if (!chat.lastTimestamp) return false;
-  if (!chat.customerLastRead) return true;
-  return chat.lastTimestamp.seconds > chat.customerLastRead.seconds;
+function statusMeta(status: BookingStatus, reviewed: boolean) {
+  switch (status) {
+    case "in_progress":
+      return { label: "ກຳລັງດຳເນີນການ", color: "#8a8f8d", bg: "#f0f2f1" };
+    case "pending_confirm":
+      return { label: "ລໍການຢືນຢັນ", color: "#8a6d1f", bg: "#fff2d6" };
+    case "completed":
+      return reviewed
+        ? { label: "ສຳເລັດ · ຣີວິວແລ້ວ", color: "#2f7d6f", bg: "#eaf6f1" }
+        : { label: "ສຳເລັດ", color: "#2f7d6f", bg: "#eaf6f1" };
+  }
 }
 
 function Bookings() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { customerPhone } = useAuth();
-  const [chats, setChats] = useState<ChatRoom[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<Booking | null>(null);
   const photoMap = useTechnicianPhotos();
   const myId = customerPhone ?? auth.currentUser?.uid ?? null;
 
+  // ---- ຊ່າງທີ່ລົງທະບຽນເອງໃນ Firestore (ບໍ່ຢູ່ໃນ techList ຄົງທີ່) ----
+  const [registeredTechs, setRegisteredTechs] = useState<Record<string, TechLite>>({});
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "technicians"),
+      (snapshot) => {
+        const map: Record<string, TechLite> = {};
+        snapshot.docs.forEach((d) => {
+          const data = d.data();
+          const phone = data.phone ?? d.id;
+          map[phone] = {
+            phone,
+            name: data.name ?? "",
+            type: data.type ?? "",
+            image: data.image || undefined,
+          };
+        });
+        setRegisteredTechs(map);
+      },
+      (err) => console.error("technicians snapshot error:", err.message)
+    );
+    return () => unsubscribe();
+  }, []);
+
+  const findTech = useMemo(() => {
+    return (phone: string): TechLite | undefined => {
+      const fromList = techList.find((t) => t.phone === phone);
+      if (fromList) return fromList;
+      return registeredTechs[phone];
+    };
+  }, [registeredTechs]);
+
+  // ---- ໂຊທຸກການຈອງຂອງລູກຄ້ານີ້, ບໍ່ວ່າສະຖານະໃດ ----
   useEffect(() => {
     if (!myId) {
       setLoading(false);
       return;
     }
     const q = query(
-      collection(db, "chats"),
-      where("customerPhone", "==", myId),
-      orderBy("lastTimestamp", "desc")
+      collection(db, "bookings"),
+      where("customerId", "==", myId),
+      orderBy("createdAt", "desc")
     );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as ChatRoom));
-      setChats(docs);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Booking));
+        setBookings(docs);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("bookings snapshot error:", err.message);
+        setLoading(false);
+      }
+    );
     return () => unsubscribe();
   }, [myId]);
+
+  const goToChat = (techPhone: string) => {
+    navigate(`/chat/${encodeURIComponent(techPhone)}`);
+  };
+
+  // ---- ຢືນຢັນວ່າວຽກສຳເລັດ ໄດ້ເລີຍຈາກໜ້ານີ້ (ບໍ່ຕ້ອງເປີດແຊັດ) ----
+  const confirmBooking = async (bookingId: string) => {
+    if (!window.confirm("ຢືນຢັນວ່າວຽກນີ້ສຳເລັດແລ້ວແທ້ບໍ່?")) return;
+    setConfirmingId(bookingId);
+    try {
+      await setDoc(
+        doc(db, "bookings", bookingId),
+        {
+          status: "completed",
+          confirmedAt: serverTimestamp(),
+          confirmedBy: myId,
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.error(err);
+      alert("ຢືນຢັນບໍ່ສຳເລັດ ກະລຸນາລອງໃໝ່");
+    } finally {
+      setConfirmingId(null);
+    }
+  };
 
   return (
     <div className="chatlist-page">
@@ -79,7 +165,7 @@ function Bookings() {
         </div>
       )}
 
-      {!loading && chats.length === 0 && (
+      {!loading && bookings.length === 0 && (
         <div className="chatlist-empty">
           <div className="chatlist-empty__icon">
             <MessageCircle size={36} />
@@ -89,73 +175,110 @@ function Bookings() {
         </div>
       )}
 
-      {!loading && chats.length > 0 && (
+      {!loading && bookings.length > 0 && (
         <div className="chat-list">
-          {chats.map((chat) => {
-            const tech = techList.find((tc) => tc.phone === chat.techPhone);
+          {bookings.map((booking) => {
+            const tech = findTech(booking.techPhone);
             const image = tech ? photoMap[tech.phone] || tech.image : undefined;
-            const unread = myId ? isUnread(chat, myId) : false;
+            const reviewed = !!booking.reviewId;
+            const meta = statusMeta(booking.status, reviewed);
+
             return (
               <div
-                key={chat.id}
+                key={booking.id}
                 className="chat-list-item"
-                onClick={() => navigate(`/chat/${encodeURIComponent(chat.techPhone)}`)}
+                onClick={() => goToChat(booking.techPhone)}
               >
-                <div className="chat-list-avatar" style={{ position: "relative" }}>
+                <div className="chat-list-avatar">
                   {image ? (
                     <img src={image} alt={tech?.name} />
                   ) : (
                     <MessageCircle size={24} color="#3d8983" />
                   )}
-                  {unread && (
-                    <span
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        right: 0,
-                        width: 10,
-                        height: 10,
-                        borderRadius: "50%",
-                        background: "#e0433d",
-                        border: "2px solid #fff",
-                      }}
-                    />
-                  )}
                 </div>
                 <div className="chat-list-info">
                   <div className="chat-list-top">
-                    <p className="chat-list-name" style={{ fontWeight: unread ? 700 : undefined }}>
-                      {tech?.name || chat.techPhone}
-                    </p>
-                    <span className="chat-list-date">{formatChatDate(chat.lastTimestamp?.seconds)}</span>
+                    <p className="chat-list-name">{tech?.name || booking.techName || booking.techPhone}</p>
+                    <span className="chat-list-date">{formatBookingDate(booking.createdAt?.seconds)}</span>
                   </div>
+
                   {tech?.type && (
                     <div className="chat-list-meta">
                       <span className="chat-list-tag">{tech.type}</span>
                     </div>
                   )}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <p
-                      className="chat-list-last"
-                      style={{ fontWeight: unread ? 600 : undefined, color: unread ? "#1c1c1c" : undefined }}
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, gap: 8 }}>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: meta.color,
+                        background: meta.bg,
+                        borderRadius: 10,
+                        padding: "3px 9px",
+                        whiteSpace: "nowrap",
+                      }}
                     >
-                      {chat.lastMessage || t.bookings.startConvo}
-                    </p>
-                    {unread && (
-                      <span
+                      {booking.status === "completed" ? (
+                        <CheckCircle2 size={12} />
+                      ) : (
+                        <Clock size={12} />
+                      )}
+                      {meta.label}
+                    </span>
+
+                    {booking.status === "pending_confirm" && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          confirmBooking(booking.id);
+                        }}
+                        disabled={confirmingId === booking.id}
                         style={{
+                          border: "none",
+                          background: "#e0a52e",
+                          color: "#fff",
+                          borderRadius: 16,
+                          padding: "5px 10px",
                           fontSize: 11,
                           fontWeight: 700,
-                          color: "#fff",
-                          background: "#3d8983",
-                          borderRadius: 10,
-                          padding: "2px 8px",
+                          cursor: "pointer",
                           whiteSpace: "nowrap",
-                          marginLeft: 8,
+                          opacity: confirmingId === booking.id ? 0.7 : 1,
                         }}
                       >
-                        {t.bookings.unread}
-                      </span>
+                        {confirmingId === booking.id ? "..." : "✓ ຢືນຢັນ"}
+                      </button>
+                    )}
+
+                    {booking.status === "completed" && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setReviewTarget(booking);
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                          border: reviewed ? "1px solid #3d8983" : "none",
+                          background: reviewed ? "#fff" : "#3d8983",
+                          color: reviewed ? "#3d8983" : "#fff",
+                          borderRadius: 16,
+                          padding: "5px 10px",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        <Star size={11} />
+                        {reviewed ? "ແກ້ໄຂຣີວິວ" : "ໃຫ້ຄະແນນ"}
+                      </button>
                     )}
                   </div>
                 </div>
@@ -163,6 +286,17 @@ function Bookings() {
             );
           })}
         </div>
+      )}
+
+      {reviewTarget && myId && (
+        <ReviewModal
+          bookingId={reviewTarget.id}
+          techPhone={reviewTarget.techPhone}
+          techName={findTech(reviewTarget.techPhone)?.name || reviewTarget.techName || reviewTarget.techPhone}
+          customerId={myId}
+          customerName={auth.currentUser?.displayName || "ລູກຄ້າ"}
+          onClose={() => setReviewTarget(null)}
+        />
       )}
 
       <BottomNav />

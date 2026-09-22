@@ -8,34 +8,22 @@ import {
   onSnapshot,
   orderBy,
   query,
+  where,
+  limit,
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
 import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
-import { ArrowLeft, Send, Camera, Image as ImageIcon, MapPin, X, Delete, Globe, Mic, Trash2 } from "lucide-react";
+import { ArrowLeft, Send, Camera, Image as ImageIcon, MapPin, CheckCircle2 } from "lucide-react";
 import { db, storage } from "../../firebase/Firebase";
 import { techList } from "../../Types/Technician";
 import "../Chat/Chat.css";
 
-// @ts-ignore - leaflet ships its own JS, types are optional (install @types/leaflet if you want them)
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
-
-// Fix default marker icon paths breaking under Vite/webpack bundling
-// @ts-ignore
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-});
-
 interface ChatMessage {
   id: string;
-  type?: "text" | "image" | "location" | "audio";
+  type?: "text" | "image" | "location";
   text?: string;
   imageUrl?: string;
-  audioUrl?: string;
   lat?: number;
   lng?: number;
   senderId: string;
@@ -45,6 +33,8 @@ interface TechLite {
   name: string;
   phone: string;
 }
+
+type BookingStatus = "in_progress" | "pending_confirm" | "completed";
 
 const iconBtnStyle: React.CSSProperties = {
   display: "inline-flex",
@@ -60,158 +50,6 @@ const iconBtnStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
-// ---------- Simple on-screen virtual keyboard (EN + Lao) ----------
-const KEY_ROWS_EN = [
-  ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
-  ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
-  ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
-  ["z", "x", "c", "v", "b", "n", "m"],
-];
-
-const KEY_ROWS_LAO = [
-  ["ກ", "ຂ", "ຄ", "ງ", "ຈ", "ສ", "ຊ", "ຍ", "ດ", "ຕ", "ຖ"],
-  ["ທ", "ນ", "ບ", "ປ", "ຜ", "ຝ", "ພ", "ຟ", "ມ", "ຢ", "ຣ"],
-  ["ລ", "ວ", "ຫ", "ອ", "ຮ", "ໜ", "ໝ", "ໆ"],
-  ["ະ", "າ", "ິ", "ີ", "ຶ", "ື", "ຸ", "ູ", "ເ", "ແ"],
-  ["ໂ", "ໃ", "ໄ", "ຳ", "່", "້", "໊", "໋", "ັ"],
-];
-
-function VirtualKeyboard({
-  onKey,
-  onBackspace,
-  onSpace,
-  onEnter,
-  onClose,
-}: {
-  onKey: (k: string) => void;
-  onBackspace: () => void;
-  onSpace: () => void;
-  onEnter: () => void;
-  onClose: () => void;
-}) {
-  const [lang, setLang] = useState<"en" | "lo">("lo");
-  const [shift, setShift] = useState(false);
-
-  const rows = lang === "en" ? KEY_ROWS_EN : KEY_ROWS_LAO;
-
-  const keyBtnStyle: React.CSSProperties = {
-    flex: 1,
-    minWidth: 0,
-    margin: 3,
-    padding: "10px 0",
-    borderRadius: 8,
-    border: "none",
-    background: "#fff",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
-    fontSize: 15,
-    cursor: "pointer",
-  };
-
-  const displayChar = (k: string) => (lang === "en" && shift ? k.toUpperCase() : k);
-
-  return (
-    <div
-      style={{
-        background: "#e7ebef",
-        padding: "6px 4px 10px",
-        borderTop: "1px solid #d6dade",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "2px 6px 6px",
-        }}
-      >
-        <span style={{ fontSize: 12, color: "#666" }}>
-          ແປ້ນພິມ · {lang === "lo" ? "ລາວ" : "English"}
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          style={{ border: "none", background: "transparent", cursor: "pointer" }}
-        >
-          <X size={18} />
-        </button>
-      </div>
-
-      {rows.map((row, i) => (
-        <div key={i} style={{ display: "flex" }}>
-          {row.map((k) => (
-            <button
-              type="button"
-              key={k}
-              style={keyBtnStyle}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => onKey(displayChar(k))}
-            >
-              {displayChar(k)}
-            </button>
-          ))}
-        </div>
-      ))}
-
-      <div style={{ display: "flex" }}>
-        <button
-          type="button"
-          title="ປ່ຽນພາສາ"
-          style={{
-            ...keyBtnStyle,
-            flex: 1.4,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 4,
-            fontSize: 12,
-            fontWeight: 600,
-          }}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => setLang((l) => (l === "en" ? "lo" : "en"))}
-        >
-          <Globe size={14} />
-          {lang === "lo" ? "EN" : "ລາວ"}
-        </button>
-        {lang === "en" && (
-          <button
-            type="button"
-            style={{ ...keyBtnStyle, flex: 1.2, fontWeight: 600 }}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setShift((s) => !s)}
-          >
-            ⇧
-          </button>
-        )}
-        <button
-          type="button"
-          style={{ ...keyBtnStyle, flex: 3.5 }}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={onSpace}
-        >
-          ຊ່ອງວ່າງ
-        </button>
-        <button
-          type="button"
-          style={{ ...keyBtnStyle, flex: 1.4, display: "flex", justifyContent: "center" }}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={onBackspace}
-        >
-          <Delete size={16} />
-        </button>
-        <button
-          type="button"
-          style={{ ...keyBtnStyle, flex: 1.8, background: "#5bb8c4", color: "#fff", fontWeight: 600 }}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={onEnter}
-        >
-          ສົ່ງ
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function TechnicianChat() {
   const { phone, chatRoomId } = useParams<{ phone: string; chatRoomId: string }>();
   const navigate = useNavigate();
@@ -222,27 +60,15 @@ function TechnicianChat() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
-  const textInputRef = useRef<HTMLInputElement>(null);
-
-  // ---- Voice recording state ----
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordSeconds, setRecordSeconds] = useState(0);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // ---- Virtual keyboard state ----
-  const [showKeyboard, setShowKeyboard] = useState(false);
-
-  // ---- Map picker state ----
-  const [showMapPicker, setShowMapPicker] = useState(false);
-  const [pickedPos, setPickedPos] = useState<{ lat: number; lng: number } | null>(null);
-  const mapDivRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markerInstanceRef = useRef<any>(null);
 
   // undefined = ກຳລັງໂຫລດຂໍ້ມູນຊ່າງ, null = ຫາບໍ່ພົບ, object = ພົບແລ້ວ
   const [tech, setTech] = useState<TechLite | null | undefined>(undefined);
+
+  // ---- Booking (2-stage confirm) state ----
+  const [bookingId, setBookingId] = useState<string | null>(null);
+  const [bookingStatus, setBookingStatus] = useState<BookingStatus | null>(null);
+  const creatingBookingRef = useRef(false);
+  const [marking, setMarking] = useState(false);
 
   const roomId = decodeURIComponent(chatRoomId ?? "");
 
@@ -304,6 +130,59 @@ function TechnicianChat() {
     return () => unsubscribe();
   }, [roomId]);
 
+  // ---- ຫາ/ສ້າງ booking ຂອງຫ້ອງແຊັດນີ້ ----
+  // ປົກກະຕິລູກຄ້າຈະເປັນຄົນສ້າງໃຫ້ກ່ອນ (ຕອນເປີດແຊັດຄັ້ງທຳອິດ), ອັນນີ້ພຽງແຕ່ຟັງ/ອ່ານ
+  // ແຕ່ກໍ່ກັນໄວ້ສ້າງໃຫ້ເຜື່ອກໍລະນີຊ່າງເປີດແຊັດກ່ອນລູກຄ້າ
+  useEffect(() => {
+    if (!tech || !roomId) {
+      setBookingId(null);
+      setBookingStatus(null);
+      return;
+    }
+
+    const q = query(
+      collection(db, "bookings"),
+      where("chatId", "==", roomId),
+      orderBy("createdAt", "desc"),
+      limit(1)
+    );
+
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      if (!snapshot.empty) {
+        const d = snapshot.docs[0];
+        setBookingId(d.id);
+        setBookingStatus((d.data().status as BookingStatus) ?? "in_progress");
+        return;
+      }
+
+      if (creatingBookingRef.current) return;
+      creatingBookingRef.current = true;
+      try {
+        // roomId ມີຮູບແບບ "{techPhone}_{customerId}" — ດຶງ customerId ອອກມາ
+        const customerId = roomId.startsWith(`${tech.phone}_`)
+          ? roomId.slice(tech.phone.length + 1)
+          : "";
+        if (!customerId) return;
+
+        await addDoc(collection(db, "bookings"), {
+          chatId: roomId,
+          techPhone: tech.phone,
+          techName: tech.name,
+          customerId,
+          customerName: "ລູກຄ້າ",
+          status: "in_progress",
+          createdAt: serverTimestamp(),
+        });
+      } catch (err) {
+        console.error("Auto-create booking failed:", err);
+      } finally {
+        creatingBookingRef.current = false;
+      }
+    });
+
+    return () => unsubscribe();
+  }, [tech, roomId]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -320,6 +199,29 @@ function TechnicianChat() {
       },
       { merge: true }
     );
+  };
+
+  // ---- ຊ່າງແຈ້ງຂັ້ນຕອນທີ 1: ວຽກແລ້ວ (ຍັງບໍ່ completed ທັນທີ, ລໍລູກຄ້າຢືນຢັນກ່ອນ) ----
+  const markJobDone = async () => {
+    if (!bookingId) return;
+    if (!window.confirm("ຢືນຢັນວ່າວຽກນີ້ສຳເລັດແລ້ວບໍ່?")) return;
+    setMarking(true);
+    try {
+      await setDoc(
+        doc(db, "bookings", bookingId),
+        {
+          status: "pending_confirm",
+          techMarkedDoneAt: serverTimestamp(),
+          techMarkedBy: myId,
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.error(err);
+      alert("ແຈ້ງວຽກສຳເລັດບໍ່ໄດ້ ກະລຸນາລອງໃໝ່");
+    } finally {
+      setMarking(false);
+    }
   };
 
   const sendMessage = async () => {
@@ -358,16 +260,9 @@ function TechnicianChat() {
         timestamp: serverTimestamp(),
       });
       await touchChatRoomMeta("📷 ຮູບພາບ");
-    } catch (err: any) {
-      // Surface the real Firebase error so we can see WHY it's failing
-      // (most common cause: Storage security rules rejecting the write,
-      // or the storage bucket not being configured yet)
-      console.error("Image upload failed:", err);
-      alert(
-        "ສົ່ງຮູບບໍ່ສຳເລັດ: " +
-          (err?.code || err?.message || "ບໍ່ຮູ້ສາເຫດ") +
-          "\n\nກະລຸນາກວດ Firebase Storage rules ຫຼືເບິ່ງ console (F12) ເພື່ອລາຍລະອຽດ."
-      );
+    } catch (err) {
+      console.error(err);
+      alert("ສົ່ງຮູບບໍ່ສຳເລັດ ກະລຸນາລອງໃໝ່");
     } finally {
       setUploading(false);
     }
@@ -379,197 +274,40 @@ function TechnicianChat() {
     if (file) uploadAndSendImage(file);
   };
 
-  // ---------------- Voice recording ----------------
-
-  const uploadAndSendAudio = async (blob: Blob) => {
+  const sendLocation = () => {
     if (!roomId) return;
-    setUploading(true);
-    try {
-      const path = `chat-audio/${roomId}/${Date.now()}.webm`;
-      const fileRef = storageRef(storage, path);
-      await uploadBytes(fileRef, blob);
-      const url = await getDownloadURL(fileRef);
-
-      const chatDocRef = doc(db, "chats", roomId);
-      await addDoc(collection(chatDocRef, "messages"), {
-        type: "audio",
-        audioUrl: url,
-        senderId: myId,
-        timestamp: serverTimestamp(),
-      });
-      await touchChatRoomMeta("🎤 ຂໍ້ຄວາມສຽງ");
-    } catch (err: any) {
-      console.error("Audio upload failed:", err);
-      alert(
-        "ສົ່ງສຽງບໍ່ສຳເລັດ: " +
-          (err?.code || err?.message || "ບໍ່ຮູ້ສາເຫດ") +
-          "\n\nກະລຸນາກວດ Firebase Storage rules ຫຼືເບິ່ງ console (F12)."
-      );
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const startRecording = async () => {
-    if (!roomId) return;
-    if (!navigator.mediaDevices?.getUserMedia) {
-      alert("ອຸປະກອນ/ຕົວທ່ອງເວັບນີ້ບໍ່ຮອງຮັບການບັນທຶກສຽງ");
+    if (!navigator.geolocation) {
+      alert("ອຸປະກອນນີ້ບໍ່ຮອງຮັບການສົ່ງຕໍາແໜ່ງ");
       return;
     }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-
-      mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.start();
-      setIsRecording(true);
-      setRecordSeconds(0);
-      recordTimerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
-    } catch (err) {
-      console.error(err);
-      alert("ບໍ່ສາມາດເຂົ້າເຖິງໄມໂຄຣໂຟນໄດ້ ກະລຸນາອະນຸຍາດການໃຊ້ໄມໂຄຣໂຟນ");
-    }
-  };
-
-  const stopRecordingAndSend = () => {
-    const mediaRecorder = mediaRecorderRef.current;
-    if (!mediaRecorder) return;
-
-    if (recordTimerRef.current) {
-      clearInterval(recordTimerRef.current);
-      recordTimerRef.current = null;
-    }
-
-    mediaRecorder.onstop = async () => {
-      mediaRecorder.stream.getTracks().forEach((t) => t.stop());
-      setIsRecording(false);
-      const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-      audioChunksRef.current = [];
-      if (blob.size > 0) await uploadAndSendAudio(blob);
-    };
-    mediaRecorder.stop();
-  };
-
-  const cancelRecording = () => {
-    const mediaRecorder = mediaRecorderRef.current;
-    if (mediaRecorder) {
-      mediaRecorder.onstop = () => {
-        mediaRecorder.stream.getTracks().forEach((t) => t.stop());
-      };
-      if (mediaRecorder.state !== "inactive") mediaRecorder.stop();
-    }
-    if (recordTimerRef.current) {
-      clearInterval(recordTimerRef.current);
-      recordTimerRef.current = null;
-    }
-    audioChunksRef.current = [];
-    setIsRecording(false);
-  };
-
-  const formatRecordTime = (s: number) =>
-    `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-
-  // ---------------- Location picker (Leaflet) ----------------
-
-  const DEFAULT_CENTER: [number, number] = [17.9757, 102.6331]; // Vientiane fallback
-
-  const openMapPicker = () => {
-    setShowMapPicker(true);
-  };
-
-  // Initialize the Leaflet map once the picker modal is shown
-  useEffect(() => {
-    if (!showMapPicker || !mapDivRef.current) return;
-
-    let center: [number, number] = DEFAULT_CENTER;
-
-    const initMap = (c: [number, number]) => {
-      const map = L.map(mapDivRef.current!).setView(c, 15);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap contributors",
-        maxZoom: 19,
-      }).addTo(map);
-
-      const marker = L.marker(c, { draggable: true }).addTo(map);
-      marker.on("dragend", () => {
-        const pos = marker.getLatLng();
-        setPickedPos({ lat: pos.lat, lng: pos.lng });
-      });
-
-      map.on("click", (e: any) => {
-        marker.setLatLng(e.latlng);
-        setPickedPos({ lat: e.latlng.lat, lng: e.latlng.lng });
-      });
-
-      mapInstanceRef.current = map;
-      markerInstanceRef.current = marker;
-      setPickedPos({ lat: c[0], lng: c[1] });
-
-      // Leaflet needs a resize kick when it's mounted inside a modal
-      setTimeout(() => map.invalidateSize(), 100);
-    };
-
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          center = [pos.coords.latitude, pos.coords.longitude];
-          initMap(center);
-        },
-        () => initMap(center), // permission denied / unavailable -> fallback center
-        { enableHighAccuracy: true, timeout: 8000 }
-      );
-    } else {
-      initMap(center);
-    }
-
-    return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-        markerInstanceRef.current = null;
-      }
-    };
-  }, [showMapPicker]);
-
-  const closeMapPicker = () => {
-    setShowMapPicker(false);
-    setPickedPos(null);
-  };
-
-  const confirmSendLocation = async () => {
-    if (!roomId || !pickedPos) return;
     setUploading(true);
-    try {
-      const chatDocRef = doc(db, "chats", roomId);
-      await addDoc(collection(chatDocRef, "messages"), {
-        type: "location",
-        lat: pickedPos.lat,
-        lng: pickedPos.lng,
-        senderId: myId,
-        timestamp: serverTimestamp(),
-      });
-      await touchChatRoomMeta("📍 ຕໍາແໜ່ງທີ່ຕັ້ງ");
-      closeMapPicker();
-    } catch (err) {
-      console.error(err);
-      alert("ສົ່ງຕໍາແໜ່ງບໍ່ສຳເລັດ");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  // ---------------- Virtual keyboard handlers ----------------
-
-  const handleKeyPress = (k: string) => setText((t) => t + k);
-  const handleBackspace = () => setText((t) => t.slice(0, -1));
-  const handleSpace = () => setText((t) => t + " ");
-  const handleKeyboardEnter = () => {
-    sendMessage();
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const chatDocRef = doc(db, "chats", roomId);
+          await addDoc(collection(chatDocRef, "messages"), {
+            type: "location",
+            lat: latitude,
+            lng: longitude,
+            senderId: myId,
+            timestamp: serverTimestamp(),
+          });
+          await touchChatRoomMeta("📍 ຕໍາແໜ່ງທີ່ຕັ້ງ");
+        } catch (err) {
+          console.error(err);
+          alert("ສົ່ງຕໍາແໜ່ງບໍ່ສຳເລັດ");
+        } finally {
+          setUploading(false);
+        }
+      },
+      (err) => {
+        console.error(err);
+        alert("ບໍ່ສາມາດດຶງຕໍາແໜ່ງໄດ້ ກະລຸນາອະນຸຍາດການເຂົ້າເຖິງທີ່ຕັ້ງໃນຕົວທ່ອງເວັບ/ອຸປະກອນ");
+        setUploading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   if (tech === undefined) {
@@ -590,18 +328,75 @@ function TechnicianChat() {
 
   return (
     <div className="chat-page">
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-      `}</style>
       <header className="chat-appbar" style={{ background: "#5bb8c4" }}>
         <button className="detail-back" onClick={() => navigate(-1)}>
           <ArrowLeft size={20} color="#fff" />
         </button>
         <h1 style={{ color: "#fff" }}>ແຊັດກັບລູກຄ້າ ({tech.name})</h1>
       </header>
+
+      {/* ---------------- Job status bar (booking-based, 2-stage confirm) ---------------- */}
+      {bookingStatus === "completed" ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "8px 14px",
+            background: "#eaf6f1",
+            borderBottom: "1px solid #d9ece5",
+            fontSize: 13,
+            color: "#2f7d6f",
+            fontWeight: 600,
+          }}
+        >
+          <CheckCircle2 size={15} /> ວຽກສຳເລັດແລ້ວ
+        </div>
+      ) : bookingStatus === "pending_confirm" ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "8px 14px",
+            background: "#fff7e6",
+            borderBottom: "1px solid #f3e6c4",
+            fontSize: 13,
+            color: "#8a6d1f",
+            fontWeight: 600,
+          }}
+        >
+          ລໍຖ້າລູກຄ້າຢືນຢັນ...
+        </div>
+      ) : (
+        bookingStatus === "in_progress" && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              padding: "6px 14px",
+              background: "#f5f7f6",
+              borderBottom: "1px solid #eceeed",
+            }}
+          >
+            <button
+              onClick={markJobDone}
+              disabled={marking}
+              style={{
+                border: "1px solid #5bb8c4",
+                background: "#fff",
+                color: "#5bb8c4",
+                borderRadius: 20,
+                padding: "5px 12px",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {marking ? "ກຳລັງແຈ້ງ..." : "✓ ວຽກແລ້ວ"}
+            </button>
+          </div>
+        )
+      )}
 
       <div className="chat-messages">
         {loading && <p className="chat-loading">ກຳລັງໂຫລດ...</p>}
@@ -643,12 +438,6 @@ function TechnicianChat() {
                   <MapPin size={16} />
                   ເບິ່ງຕໍາແໜ່ງໃນແຜນທີ່
                 </a>
-              ) : msg.type === "audio" && msg.audioUrl ? (
-                <audio
-                  controls
-                  src={msg.audioUrl}
-                  style={{ maxWidth: 230, height: 36 }}
-                />
               ) : (
                 <div
                   className="chat-bubble"
@@ -681,217 +470,49 @@ function TechnicianChat() {
       />
 
       <div className="chat-input-bar">
-        {isRecording ? (
-          <>
-            <button
-              type="button"
-              style={iconBtnStyle}
-              onClick={cancelRecording}
-              title="ຍົກເລີກ"
-            >
-              <Trash2 size={20} color="#e05353" />
-            </button>
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                color: "#e05353",
-                fontWeight: 600,
-              }}
-            >
-              <span
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: "50%",
-                  background: "#e05353",
-                  display: "inline-block",
-                  animation: "pulse 1s infinite",
-                }}
-              />
-              ກຳລັງບັນທຶກສຽງ... {formatRecordTime(recordSeconds)}
-            </div>
-            <button
-              className="chat-send"
-              style={{ background: "#5bb8c4" }}
-              onClick={stopRecordingAndSend}
-              disabled={uploading}
-              title="ສົ່ງສຽງ"
-            >
-              <Send size={18} color="#fff" />
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              style={iconBtnStyle}
-              onClick={() => cameraInputRef.current?.click()}
-              disabled={uploading}
-              title="ຖ່າຍຮູບ"
-            >
-              <Camera size={20} />
-            </button>
-            <button
-              type="button"
-              style={iconBtnStyle}
-              onClick={() => galleryInputRef.current?.click()}
-              disabled={uploading}
-              title="ສົ່ງຮູບ"
-            >
-              <ImageIcon size={20} />
-            </button>
-            <button
-              type="button"
-              style={iconBtnStyle}
-              onClick={openMapPicker}
-              disabled={uploading}
-              title="ເລືອກຕໍາແໜ່ງ"
-            >
-              <MapPin size={20} />
-            </button>
-            <button
-              type="button"
-              style={iconBtnStyle}
-              onClick={startRecording}
-              disabled={uploading}
-              title="ບັນທຶກສຽງ"
-            >
-              <Mic size={20} />
-            </button>
-            <input
-              ref={textInputRef}
-              type="text"
-              placeholder="ພິມຂໍ້ຄວາມ..."
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onFocus={() => setShowKeyboard(true)}
-              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            />
-            <button
-              className="chat-send"
-              style={{ background: "#5bb8c4" }}
-              onClick={sendMessage}
-              disabled={uploading}
-            >
-              <Send size={18} color="#fff" />
-            </button>
-          </>
-        )}
-      </div>
-
-      {showKeyboard && (
-        <VirtualKeyboard
-          onKey={handleKeyPress}
-          onBackspace={handleBackspace}
-          onSpace={handleSpace}
-          onEnter={handleKeyboardEnter}
-          onClose={() => setShowKeyboard(false)}
-        />
-      )}
-
-      {/* ---------------- Location picker modal ---------------- */}
-      {showMapPicker && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            zIndex: 1000,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "flex-end",
-          }}
+        <button
+          type="button"
+          style={iconBtnStyle}
+          onClick={() => cameraInputRef.current?.click()}
+          disabled={uploading}
+          title="ຖ່າຍຮູບ"
         >
-          <div
-            style={{
-              background: "#fff",
-              borderTopLeftRadius: 16,
-              borderTopRightRadius: 16,
-              overflow: "hidden",
-              display: "flex",
-              flexDirection: "column",
-              height: "80vh",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "12px 16px",
-                borderBottom: "1px solid #eee",
-              }}
-            >
-              <strong>ເລືອກຕໍາແໜ່ງ</strong>
-              <button
-                type="button"
-                onClick={closeMapPicker}
-                style={{ border: "none", background: "transparent", cursor: "pointer" }}
-              >
-                <X size={22} />
-              </button>
-            </div>
-
-            <div style={{ flex: 1, position: "relative" }}>
-              <div ref={mapDivRef} style={{ width: "100%", height: "100%" }} />
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: 8,
-                  left: 8,
-                  right: 8,
-                  background: "rgba(255,255,255,0.9)",
-                  padding: "6px 10px",
-                  borderRadius: 8,
-                  fontSize: 12,
-                  textAlign: "center",
-                }}
-              >
-                ແຕະຫຼືລາກໝຸດເພື່ອເລືອກຕໍາແໜ່ງ
-              </div>
-            </div>
-
-            <div style={{ display: "flex", gap: 10, padding: 12, borderTop: "1px solid #eee" }}>
-              <button
-                type="button"
-                onClick={closeMapPicker}
-                style={{
-                  flex: 1,
-                  padding: "12px 0",
-                  borderRadius: 10,
-                  border: "1px solid #ccc",
-                  background: "#fff",
-                  cursor: "pointer",
-                }}
-              >
-                ຍົກເລີກ
-              </button>
-              <button
-                type="button"
-                onClick={confirmSendLocation}
-                disabled={!pickedPos || uploading}
-                style={{
-                  flex: 1,
-                  padding: "12px 0",
-                  borderRadius: 10,
-                  border: "none",
-                  background: "#5bb8c4",
-                  color: "#fff",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  opacity: !pickedPos || uploading ? 0.6 : 1,
-                }}
-              >
-                ສົ່ງຕໍາແໜ່ງນີ້
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          <Camera size={20} />
+        </button>
+        <button
+          type="button"
+          style={iconBtnStyle}
+          onClick={() => galleryInputRef.current?.click()}
+          disabled={uploading}
+          title="ສົ່ງຮູບ"
+        >
+          <ImageIcon size={20} />
+        </button>
+        <button
+          type="button"
+          style={iconBtnStyle}
+          onClick={sendLocation}
+          disabled={uploading}
+          title="ສົ່ງຕໍາແໜ່ງ"
+        >
+          <MapPin size={20} />
+        </button>
+        <input
+          type="text"
+          placeholder="ພິມຂໍ້ຄວາມ..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+        />
+        <button
+          className="chat-send"
+          style={{ background: "#5bb8c4" }}
+          onClick={sendMessage}
+          disabled={uploading}
+        >
+          <Send size={18} color="#fff" />
+        </button>
+      </div>
     </div>
   );
 }
