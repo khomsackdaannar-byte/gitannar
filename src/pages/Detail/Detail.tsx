@@ -10,14 +10,13 @@ import {
   User,
   Star,
   Phone,
-  MessageCircle,
+  CalendarCheck,
 } from "lucide-react";
 import { db } from "../../firebase/Firebase";
 import { techList, type Technician } from "../../Types/Technician";
 import { useTechnicianPhotos } from "../../hooks/useTechnicianPhotos";
 import "./Detail.css";
 
-// ທຽບເທົ່າ _infoRow() ໃນ Flutter
 function InfoRow({
   icon: Icon,
   label,
@@ -38,7 +37,6 @@ function InfoRow({
   );
 }
 
-// ທຽບເທົ່າ DetailPage ໃນ Flutter
 function Detail() {
   const { phone } = useParams<{ phone: string }>();
   const navigate = useNavigate();
@@ -48,7 +46,6 @@ function Detail() {
   const decodedPhone = decodeURIComponent(phone ?? "");
   const staticTech = techList.find((t) => t.phone === decodedPhone);
 
-  // ຂໍ້ມູນຊ່າງ (ຫາໃນ techList ຄົງທີ່ກ່ອນ, ຖ້າບໍ່ພົບໃຫ້ໄປອ່ານ Firestore)
   const [tech, setTech] = useState<Technician | null>(staticTech ?? null);
   const [techLoading, setTechLoading] = useState(!staticTech);
 
@@ -108,6 +105,12 @@ function Detail() {
 
   const Icon = tech ? getTechIcon(tech.icon) : MapPin;
   const image = tech ? photoMap[tech.phone] || tech.image : undefined;
+
+  // ---- ກົດ "ຈອງບໍລິການ": ພາໄປຫ້ອງແຊັດ, ຈຶ່ງກອກແບບຟອມການຈອງຢູ່ໃນນັ້ນ ----
+  const goBookInChat = () => {
+    if (!tech) return;
+    navigate(`/chat/${encodeURIComponent(tech.phone)}?book=1`);
+  };
 
   if (techLoading) {
     return (
@@ -179,16 +182,13 @@ function Detail() {
         </div>
 
         <div className="detail-actions">
-          <button className="btn btn--primary" onClick={() => setShowCallDialog(true)}>
+          <button className="btn btn--primary" onClick={goBookInChat}>
+            <CalendarCheck size={18} />
+            ຈອງບໍລິການ
+          </button>
+          <button className="btn btn--outline" onClick={() => setShowCallDialog(true)}>
             <Phone size={18} />
             ໂທຫາຊ່າງ
-          </button>
-          <button
-            className="btn btn--outline"
-            onClick={() => navigate(`/chat/${encodeURIComponent(tech.phone)}`)}
-          >
-            <MessageCircle size={18} />
-            ແຊັດຫາຊ່າງ
           </button>
         </div>
       </div>

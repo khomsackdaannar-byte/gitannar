@@ -215,10 +215,12 @@ function TechnicianHome() {
           comment: d.data().comment ?? "",
         }));
         setReviews(docs);
+        setReviewsError(null);
         setReviewsLoading(false);
       },
       (err) => {
-        console.warn("reviews query error:", err.message);
+        // ພິມ error ອອກ console ໃຫ້ຄົບ (ລວມທັງລິ້ງສ້າງ index ຖ້າມີ) ເພື່ອງ່າຍຕໍ່ການ debug
+        console.error("reviews query error:", err.message);
         setReviewsError(err.message);
         setReviewsLoading(false);
       }
@@ -468,7 +470,13 @@ function TechnicianHome() {
             <h3>ຣີວິວຈາກລູກຄ້າ</h3>
             {reviewsLoading && <p className="tech-home-status">{t.technicianHome.loading}</p>}
             {!reviewsLoading && reviewsError && (
-              <p className="tech-home-status">ຍັງບໍ່ມີຣີວິວ</p>
+              <p className="tech-home-status" style={{ color: "#e05353" }}>
+                ໂຫລດຣີວິວບໍ່ໄດ້: {reviewsError}
+                <br />
+                <span style={{ fontSize: 12, color: "#888" }}>
+                  (ຖ້າຂຶ້ນ "requires an index" ໃຫ້ເບິ່ງລິ້ງໃນ console F12 ແລ້ວກົດສ້າງ index)
+                </span>
+              </p>
             )}
             {!reviewsLoading && !reviewsError && reviews.length === 0 && (
               <p className="tech-home-status">ຍັງບໍ່ມີຣີວິວ</p>

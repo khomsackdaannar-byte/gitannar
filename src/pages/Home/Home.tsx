@@ -27,22 +27,22 @@ function Home() {
     { category: TechCategory.beauty, label: t.home.categories.beauty, icon: Scissors, cls: "beauty" },
     { category: TechCategory.carRepair, label: t.home.categories.carRepair, icon: Car, cls: "car_repair" },
     { category: TechCategory.phoneRepair, label: t.home.categories.phoneRepair, icon: Smartphone, cls: "phone_repair" },
+    { category: TechCategory.airRepair, label: t.home.categories.airRepair, icon: Snowflake, cls: "air_repair" },
   ];
 
-const [displayName, setDisplayName] = useState<string>("ທ່ານ");
+  const [displayName, setDisplayName] = useState<string>("ທ່ານ");
 
-useEffect(() => {
-  const uid = auth.currentUser?.uid;
-  if (!uid) return;
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
 
-  const unsubscribe = onSnapshot(doc(db, "users", uid), (snap) => {
-    const name = snap.exists() ? (snap.data().name as string) : "";
-    setDisplayName(name && name.trim() !== "" ? name : "ທ່ານ");
-  });
+    const unsubscribe = onSnapshot(doc(db, "users", uid), (snap) => {
+      const name = snap.exists() ? (snap.data().name as string) : "";
+      setDisplayName(name && name.trim() !== "" ? name : "ທ່ານ");
+    });
 
-  return () => unsubscribe();
-}, []);
-
+    return () => unsubscribe();
+  }, []);
 
   const [registeredTechs, setRegisteredTechs] = useState<Technician[]>([]);
 

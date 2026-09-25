@@ -5,6 +5,7 @@ export const TechCategory = {
   beauty: "beauty",
   carRepair: "car_repair",
   phoneRepair: "phone_repair",
+  airRepair: "air_repair",
 } as const;
 
 export type TechCategoryType = (typeof TechCategory)[keyof typeof TechCategory];

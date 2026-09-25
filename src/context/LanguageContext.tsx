@@ -44,6 +44,7 @@ export const translations = {
         beauty: "ຊ່າງເສີມສວຍ",
         carRepair: "ຊ່າງສ້ອມແປງລົດ",
         phoneRepair: "ຊ່າງສ້ອມແປງໂທລະສັບ",
+        airRepair: "ຊ່າແອ",
       },
     },
     history: {
@@ -258,6 +259,7 @@ export const translations = {
         beauty: "ช่างเสริมสวย",
         carRepair: "ช่างซ่อมรถ",
         phoneRepair: "ช่างซ่อมโทรศัพท์",
+        airRepair: "ช่างแอร์"
       },
     },
     history: {
@@ -415,6 +417,7 @@ export const translations = {
         beauty: "Beautician",
         carRepair: "Car Repair",
         phoneRepair: "Phone Repair",
+        airReppair : "air Repair",
       },
     },
     history: {

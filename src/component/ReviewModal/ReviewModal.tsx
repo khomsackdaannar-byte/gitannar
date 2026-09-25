@@ -13,69 +13,32 @@ interface ReviewModalProps {
   onSaved?: () => void;
 }
 
-type LoadState = "loading" | "ready" | "not_completed" | "not_found";
-
 /**
- * Popup ໃຫ້ຄະແນນ (1-5 ດາວ) + ຄອມເມັ້ນ ຜູກກັບ "booking" ໜຶ່ງລາຍການ
- * (ບໍ່ແມ່ນຜູກກັບຊ່າງໂດຍກົງອີກຕໍ່ໄປ)
- *
- * doc id ໃນ collection "reviews" = bookingId ໂດຍກົງ
- * → ຈອງໃໝ່ (booking ໃໝ່) = ຣີວິວໃໝ່ໄດ້ອີກຄັ້ງ (ບໍ່ທັບຂອງເກົ່າ)
- * → ຖ້າກົດເປີດຄືນ modal ຂອງ booking ດຽວກັນ ຈະແກ້ໄຂຣີວິວອັນເກົ່າຂອງ booking ນັ້ນ (setDoc merge)
- *
- * ກ່ອນໃຫ້ຣີວິວໄດ້ ຈະເຊັກສະຖານະຂອງ booking ກ່ອນວ່າ status === "completed"
- * (ຜ່ານ 2 ຂັ້ນຕອນຢືນຢັນ: ຊ່າງກົດວຽກແລ້ວ → ລູກຄ້າກົດຢືນຢັນ) ຖ້າຍັງບໍ່ຄົບ ຈະບໍ່ໃຫ້ຣີວິວ
+ * Popup ໃຫ້ຄະແນນ (1-5 ດາວ) + ຄອມເມັ້ນ ສຳລັບການຈອງ (booking) ໜຶ່ງຄັ້ງ
+ * ໃຊ້ doc id = bookingId ດັ່ງນັ້ນແຕ່ລະການຈອງ ຣີວິວແຍກກັນໄດ້
+ * (ກົດຮີວິວຊ້ຳໃນ booking ດຽວກັນ = ແກ້ໄຂອັນເກົ່າ, setDoc merge)
  */
-function ReviewModal({
-  bookingId,
-  techPhone,
-  techName,
-  customerId,
-  customerName,
-  onClose,
-  onSaved,
-}: ReviewModalProps) {
+function ReviewModal({ bookingId, techPhone, techName, customerId, customerName, onClose, onSaved }: ReviewModalProps) {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
-  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-
-    const load = async () => {
-      try {
-        // 1) ກວດ booking ກ່ອນ — ຕ້ອງ completed (ຜ່ານ 2 ຂັ້ນຕອນຢືນຢັນ) ຈຶ່ງໃຫ້ຣີວິວໄດ້
-        const bookingSnap = await getDoc(doc(db, "bookings", bookingId));
+    getDoc(doc(db, "reviews", bookingId))
+      .then((snap) => {
         if (cancelled) return;
-
-        if (!bookingSnap.exists()) {
-          setLoadState("not_found");
-          return;
-        }
-        const bookingData = bookingSnap.data();
-        if (bookingData.status !== "completed") {
-          setLoadState("not_completed");
-          return;
-        }
-
-        // 2) ໂຫລດຣີວິວເກົ່າຂອງ booking ນີ້ (ຖ້າມີ) ເພື່ອໃຫ້ແກ້ໄຂໄດ້
-        const reviewSnap = await getDoc(doc(db, "reviews", bookingId));
-        if (cancelled) return;
-
-        if (reviewSnap.exists()) {
-          const d = reviewSnap.data();
+        if (snap.exists()) {
+          const d = snap.data();
           setRating(d.rating ?? 0);
           setComment(d.comment ?? "");
         }
-        setLoadState("ready");
-      } catch (err) {
-        console.error(err);
-        if (!cancelled) setLoadState("not_found");
-      }
-    };
-
-    load();
+      })
+      .catch((err) => console.error(err))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -101,17 +64,6 @@ function ReviewModal({
         },
         { merge: true }
       );
-
-      // ໝາຍໄວ້ໃນ booking ວ່າຖືກຣີວິວແລ້ວ (ໃຊ້ສະແດງໃນໜ້າປະຫວັດ)
-      await setDoc(
-        doc(db, "bookings", bookingId),
-        {
-          reviewId: bookingId,
-          reviewedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-
       onSaved?.();
       onClose();
     } catch (err) {
@@ -154,19 +106,9 @@ function ReviewModal({
           </button>
         </div>
 
-        {loadState === "loading" && <p style={{ color: "#888" }}>ກຳລັງໂຫລດ...</p>}
-
-        {loadState === "not_found" && (
-          <p style={{ color: "#c0392b" }}>ບໍ່ພົບຂໍ້ມູນການຈອງນີ້ ກະລຸນາລອງໃໝ່ພາຍຫຼັງ</p>
-        )}
-
-        {loadState === "not_completed" && (
-          <p style={{ color: "#c0392b" }}>
-            ຍັງໃຫ້ຣີວິວບໍ່ໄດ້ — ຕ້ອງລໍຖ້າຢືນຢັນວ່າວຽກສຳເລັດຄົບທັງ 2 ຝ່າຍກ່ອນ
-          </p>
-        )}
-
-        {loadState === "ready" && (
+        {loading ? (
+          <p style={{ color: "#888" }}>ກຳລັງໂຫລດ...</p>
+        ) : (
           <>
             <div style={{ display: "flex", justifyContent: "center", gap: 6, margin: "16px 0" }}>
               {[1, 2, 3, 4, 5].map((n) => (

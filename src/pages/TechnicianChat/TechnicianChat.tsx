@@ -1,31 +1,36 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  collection,
   addDoc,
+  collection,
   doc,
   getDoc,
   onSnapshot,
   orderBy,
   query,
-  where,
-  limit,
   serverTimestamp,
   setDoc,
+  where,
 } from "firebase/firestore";
 import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
-import { ArrowLeft, Send, Camera, Image as ImageIcon, MapPin, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Send, Camera, Image as ImageIcon, MapPin, CheckCircle2, Clock3, CalendarPlus, User, Mic, Trash2 } from "lucide-react";
 import { db, storage } from "../../firebase/Firebase";
 import { techList } from "../../Types/Technician";
 import "../Chat/Chat.css";
 
 interface ChatMessage {
   id: string;
-  type?: "text" | "image" | "location";
+  type?: "text" | "image" | "location" | "audio" | "booking" | "booking_request";
   text?: string;
   imageUrl?: string;
+  audioUrl?: string;
   lat?: number;
   lng?: number;
+  bookingName?: string;
+  bookingPhone?: string;
+  bookingAddress?: string;
+  bookingTime?: string;
+  bookingPhotoUrl?: string | null;
   senderId: string;
 }
 
@@ -34,7 +39,13 @@ interface TechLite {
   phone: string;
 }
 
-type BookingStatus = "in_progress" | "pending_confirm" | "completed";
+interface Booking {
+  id: string;
+  techPhone: string;
+  customerId: string;
+  status: "in_progress" | "pending_confirm" | "completed";
+  createdAt?: { seconds: number };
+}
 
 const iconBtnStyle: React.CSSProperties = {
   display: "inline-flex",
@@ -50,6 +61,51 @@ const iconBtnStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
+function BookingCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
+  return (
+    <div
+      style={{
+        maxWidth: 260,
+        borderRadius: 14,
+        overflow: "hidden",
+        border: "1px solid #d7edf0",
+        background: "#fff",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "8px 12px",
+          background: isMe ? "#5bb8c4" : "#eaf6f8",
+          color: isMe ? "#fff" : "#2b7c87",
+          fontSize: 12.5,
+          fontWeight: 700,
+        }}
+      >
+        <CalendarPlus size={14} /> ຂໍ້ມູນການຈອງ
+      </div>
+      <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
+        {msg.bookingPhotoUrl && (
+          <img
+            src={msg.bookingPhotoUrl}
+            alt="ຮູບບັນຫາ"
+            style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 8, marginBottom: 4, cursor: "pointer" }}
+            onClick={() => window.open(msg.bookingPhotoUrl!, "_blank")}
+          />
+        )}
+        <div style={{ fontSize: 13, color: "#2b3a37", display: "flex", alignItems: "center", gap: 5 }}>
+          <User size={13} color="#5bb8c4" /> {msg.bookingName}
+        </div>
+        <div style={{ fontSize: 13, color: "#2b3a37" }}>☎ {msg.bookingPhone}</div>
+        <div style={{ fontSize: 13, color: "#2b3a37" }}>📍 {msg.bookingAddress}</div>
+        {msg.bookingTime && <div style={{ fontSize: 13, color: "#2b3a37" }}>🕒 {msg.bookingTime}</div>}
+      </div>
+    </div>
+  );
+}
+
 function TechnicianChat() {
   const { phone, chatRoomId } = useParams<{ phone: string; chatRoomId: string }>();
   const navigate = useNavigate();
@@ -64,11 +120,16 @@ function TechnicianChat() {
   // undefined = ກຳລັງໂຫລດຂໍ້ມູນຊ່າງ, null = ຫາບໍ່ພົບ, object = ພົບແລ້ວ
   const [tech, setTech] = useState<TechLite | null | undefined>(undefined);
 
-  // ---- Booking (2-stage confirm) state ----
-  const [bookingId, setBookingId] = useState<string | null>(null);
-  const [bookingStatus, setBookingStatus] = useState<BookingStatus | null>(null);
-  const creatingBookingRef = useRef(false);
+  // ---- Booking state ----
+  const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
   const [marking, setMarking] = useState(false);
+
+  // ---- Voice recording state ----
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const roomId = decodeURIComponent(chatRoomId ?? "");
 
@@ -110,6 +171,10 @@ function TechnicianChat() {
 
   const myId = `tech_${tech?.phone ?? ""}`;
 
+  // ---- ເອົາ customerId ອອກຈາກ roomId (ຮູບແບບ "{techPhone}_{customerId}") ----
+  const customerIdFromRoom =
+    tech && roomId.startsWith(`${tech.phone}_`) ? roomId.slice(tech.phone.length + 1) : null;
+
   useEffect(() => {
     if (!roomId) return;
     const q = query(
@@ -130,58 +195,29 @@ function TechnicianChat() {
     return () => unsubscribe();
   }, [roomId]);
 
-  // ---- ຫາ/ສ້າງ booking ຂອງຫ້ອງແຊັດນີ້ ----
-  // ປົກກະຕິລູກຄ້າຈະເປັນຄົນສ້າງໃຫ້ກ່ອນ (ຕອນເປີດແຊັດຄັ້ງທຳອິດ), ອັນນີ້ພຽງແຕ່ຟັງ/ອ່ານ
-  // ແຕ່ກໍ່ກັນໄວ້ສ້າງໃຫ້ເຜື່ອກໍລະນີຊ່າງເປີດແຊັດກ່ອນລູກຄ້າ
+  // ---- ຟັງການຈອງ (booking) ຫຼ້າສຸດ ຂອງລູກຄ້າຄົນນີ້ ----
   useEffect(() => {
-    if (!tech || !roomId) {
-      setBookingId(null);
-      setBookingStatus(null);
-      return;
-    }
-
+    if (!tech || !customerIdFromRoom) return;
     const q = query(
       collection(db, "bookings"),
-      where("chatId", "==", roomId),
-      orderBy("createdAt", "desc"),
-      limit(1)
+      where("techPhone", "==", tech.phone),
+      where("customerId", "==", customerIdFromRoom),
+      orderBy("createdAt", "desc")
     );
-
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      if (!snapshot.empty) {
-        const d = snapshot.docs[0];
-        setBookingId(d.id);
-        setBookingStatus((d.data().status as BookingStatus) ?? "in_progress");
-        return;
-      }
-
-      if (creatingBookingRef.current) return;
-      creatingBookingRef.current = true;
-      try {
-        // roomId ມີຮູບແບບ "{techPhone}_{customerId}" — ດຶງ customerId ອອກມາ
-        const customerId = roomId.startsWith(`${tech.phone}_`)
-          ? roomId.slice(tech.phone.length + 1)
-          : "";
-        if (!customerId) return;
-
-        await addDoc(collection(db, "bookings"), {
-          chatId: roomId,
-          techPhone: tech.phone,
-          techName: tech.name,
-          customerId,
-          customerName: "ລູກຄ້າ",
-          status: "in_progress",
-          createdAt: serverTimestamp(),
-        });
-      } catch (err) {
-        console.error("Auto-create booking failed:", err);
-      } finally {
-        creatingBookingRef.current = false;
-      }
-    });
-
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        if (snapshot.empty) {
+          setActiveBooking(null);
+          return;
+        }
+        const latest = snapshot.docs[0];
+        setActiveBooking({ id: latest.id, ...latest.data() } as Booking);
+      },
+      (err) => console.error("booking query error:", err.message)
+    );
     return () => unsubscribe();
-  }, [tech, roomId]);
+  }, [tech, customerIdFromRoom]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -201,24 +237,40 @@ function TechnicianChat() {
     );
   };
 
-  // ---- ຊ່າງແຈ້ງຂັ້ນຕອນທີ 1: ວຽກແລ້ວ (ຍັງບໍ່ completed ທັນທີ, ລໍລູກຄ້າຢືນຢັນກ່ອນ) ----
-  const markJobDone = async () => {
-    if (!bookingId) return;
-    if (!window.confirm("ຢືນຢັນວ່າວຽກນີ້ສຳເລັດແລ້ວບໍ່?")) return;
+  // ---- ຊ່າງແຈ້ງວ່າວຽກສຳເລັດ (ລໍຖ້າລູກຄ້າຢືນຢັນ) ----
+  const markBookingDone = async () => {
+    if (!activeBooking) return;
+    if (!window.confirm("ຢືນຢັນວ່າວຽກນີ້ສຳເລັດແລ້ວບໍ່? (ລູກຄ້າຈະຕ້ອງຢືນຢັນອີກເທື່ອ)")) return;
     setMarking(true);
     try {
       await setDoc(
-        doc(db, "bookings", bookingId),
-        {
-          status: "pending_confirm",
-          techMarkedDoneAt: serverTimestamp(),
-          techMarkedBy: myId,
-        },
+        doc(db, "bookings", activeBooking.id),
+        { status: "pending_confirm", techMarkedAt: serverTimestamp() },
         { merge: true }
       );
     } catch (err) {
       console.error(err);
       alert("ແຈ້ງວຽກສຳເລັດບໍ່ໄດ້ ກະລຸນາລອງໃໝ່");
+    } finally {
+      setMarking(false);
+    }
+  };
+
+  // ---- ຊ່າງກົດຂໍໃຫ້ລູກຄ້າກອກຂໍ້ມູນການຈອງ (ສົ່ງເປັນຂໍ້ຄວາມພິເສດ) ----
+  const sendBookingRequest = async () => {
+    if (!roomId) return;
+    setMarking(true);
+    try {
+      const chatDocRef = doc(db, "chats", roomId);
+      await addDoc(collection(chatDocRef, "messages"), {
+        type: "booking_request",
+        senderId: myId,
+        timestamp: serverTimestamp(),
+      });
+      await touchChatRoomMeta("📋 ຂໍໃຫ້ກອກຂໍ້ມູນຈອງ");
+    } catch (err) {
+      console.error(err);
+      alert("ສົ່ງຄຳຂໍບໍ່ສຳເລັດ ກະລຸນາລອງໃໝ່");
     } finally {
       setMarking(false);
     }
@@ -310,6 +362,104 @@ function TechnicianChat() {
     );
   };
 
+  // ---------------- Voice recording ----------------
+
+  const uploadAndSendAudio = async (blob: Blob) => {
+    if (!roomId) return;
+    setUploading(true);
+    try {
+      const path = `chat-audio/${roomId}/${Date.now()}.webm`;
+      const fileRef = storageRef(storage, path);
+      await uploadBytes(fileRef, blob);
+      const url = await getDownloadURL(fileRef);
+
+      const chatDocRef = doc(db, "chats", roomId);
+      await addDoc(collection(chatDocRef, "messages"), {
+        type: "audio",
+        audioUrl: url,
+        senderId: myId,
+        timestamp: serverTimestamp(),
+      });
+      await touchChatRoomMeta("🎤 ຂໍ້ຄວາມສຽງ");
+    } catch (err: any) {
+      console.error("Audio upload failed:", err);
+      alert(
+        "ສົ່ງສຽງບໍ່ສຳເລັດ: " +
+          (err?.code || err?.message || "ບໍ່ຮູ້ສາເຫດ") +
+          "\n\nກະລຸນາກວດ Firebase Storage rules ຫຼືເບິ່ງ console (F12)."
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const startRecording = async () => {
+    if (!roomId) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      alert("ອຸປະກອນ/ຕົວທ່ອງເວັບນີ້ບໍ່ຮອງຮັບການບັນທຶກສຽງ");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordSeconds(0);
+      recordTimerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+    } catch (err) {
+      console.error(err);
+      alert("ບໍ່ສາມາດເຂົ້າເຖິງໄມໂຄຣໂຟນໄດ້ ກະລຸນາອະນຸຍາດການໃຊ້ໄມໂຄຣໂຟນ");
+    }
+  };
+
+  const stopRecordingAndSend = () => {
+    const mediaRecorder = mediaRecorderRef.current;
+    if (!mediaRecorder) return;
+
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+
+    mediaRecorder.onstop = async () => {
+      mediaRecorder.stream.getTracks().forEach((t) => t.stop());
+      setIsRecording(false);
+      const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+      audioChunksRef.current = [];
+      if (blob.size > 0) await uploadAndSendAudio(blob);
+    };
+    mediaRecorder.stop();
+  };
+
+  const cancelRecording = () => {
+    const mediaRecorder = mediaRecorderRef.current;
+    if (mediaRecorder) {
+      mediaRecorder.onstop = () => {
+        mediaRecorder.stream.getTracks().forEach((t) => t.stop());
+      };
+      if (mediaRecorder.state !== "inactive") mediaRecorder.stop();
+    }
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+    audioChunksRef.current = [];
+    setIsRecording(false);
+  };
+
+  const formatRecordTime = (s: number) =>
+    `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+  // ບໍ່ມີການຈອງເລີຍ, ຫຼືການຈອງລ່າສຸດສຳເລັດແລ້ວ -> ໃຫ້ຊ່າງກົດຂໍໃຫ້ລູກຄ້າກອກຂໍ້ມູນຈອງໄດ້
+  const showRequestButton = !activeBooking || activeBooking.status === "completed";
+
   if (tech === undefined) {
     return (
       <div className="chat-page">
@@ -328,6 +478,12 @@ function TechnicianChat() {
 
   return (
     <div className="chat-page">
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+      `}</style>
       <header className="chat-appbar" style={{ background: "#5bb8c4" }}>
         <button className="detail-back" onClick={() => navigate(-1)}>
           <ArrowLeft size={20} color="#fff" />
@@ -335,67 +491,111 @@ function TechnicianChat() {
         <h1 style={{ color: "#fff" }}>ແຊັດກັບລູກຄ້າ ({tech.name})</h1>
       </header>
 
-      {/* ---------------- Job status bar (booking-based, 2-stage confirm) ---------------- */}
-      {bookingStatus === "completed" ? (
+      {/* ---------------- Booking status bar ---------------- */}
+      {showRequestButton && (
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 6,
+            justifyContent: "space-between",
+            gap: 8,
             padding: "8px 14px",
-            background: "#eaf6f1",
-            borderBottom: "1px solid #d9ece5",
-            fontSize: 13,
-            color: "#2f7d6f",
-            fontWeight: 600,
+            background: "#eaf6f8",
+            borderBottom: "1px solid #d7edf0",
           }}
         >
-          <CheckCircle2 size={15} /> ວຽກສຳເລັດແລ້ວ
-        </div>
-      ) : bookingStatus === "pending_confirm" ? (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            padding: "8px 14px",
-            background: "#fff7e6",
-            borderBottom: "1px solid #f3e6c4",
-            fontSize: 13,
-            color: "#8a6d1f",
-            fontWeight: 600,
-          }}
-        >
-          ລໍຖ້າລູກຄ້າຢືນຢັນ...
-        </div>
-      ) : (
-        bookingStatus === "in_progress" && (
-          <div
+          <span style={{ fontSize: 12.5, color: "#2b5f66" }}>
+            {activeBooking?.status === "completed" ? "ຢາກໃຫ້ຈອງໃໝ່ອີກຄັ້ງບໍ?" : "ຍັງບໍ່ໄດ້ຈອງບໍລິການ"}
+          </span>
+          <button
+            onClick={sendBookingRequest}
+            disabled={marking}
             style={{
               display: "flex",
-              justifyContent: "flex-end",
-              padding: "6px 14px",
-              background: "#f5f7f6",
-              borderBottom: "1px solid #eceeed",
+              alignItems: "center",
+              gap: 5,
+              border: "none",
+              background: "#5bb8c4",
+              color: "#fff",
+              borderRadius: 20,
+              padding: "6px 13px",
+              fontSize: 12.5,
+              fontWeight: 600,
+              cursor: "pointer",
             }}
           >
-            <button
-              onClick={markJobDone}
-              disabled={marking}
+            <CalendarPlus size={14} /> {marking ? "ກຳລັງສົ່ງ..." : "ຂໍໃຫ້ກອກຂໍ້ມູນຈອງ"}
+          </button>
+        </div>
+      )}
+
+      {activeBooking && (
+        <>
+          {activeBooking.status === "in_progress" && (
+            <div
               style={{
-                border: "1px solid #5bb8c4",
-                background: "#fff",
-                color: "#5bb8c4",
-                borderRadius: 20,
-                padding: "5px 12px",
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: "pointer",
+                display: "flex",
+                justifyContent: "flex-end",
+                padding: "6px 14px",
+                background: "#f5f7f6",
+                borderBottom: "1px solid #eceeed",
               }}
             >
-              {marking ? "ກຳລັງແຈ້ງ..." : "✓ ວຽກແລ້ວ"}
-            </button>
-          </div>
-        )
+              <button
+                onClick={markBookingDone}
+                disabled={marking}
+                style={{
+                  border: "1px solid #5bb8c4",
+                  background: "#fff",
+                  color: "#5bb8c4",
+                  borderRadius: 20,
+                  padding: "5px 12px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {marking ? "ກຳລັງແຈ້ງ..." : "✓ ວຽກແລ້ວ"}
+              </button>
+            </div>
+          )}
+
+          {activeBooking.status === "pending_confirm" && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "8px 14px",
+                background: "#fff6e5",
+                borderBottom: "1px solid #f0e2bd",
+                fontSize: 13,
+                color: "#8a6413",
+                fontWeight: 600,
+              }}
+            >
+              <Clock3 size={14} /> ລໍຖ້າລູກຄ້າຢືນຢັນວຽກສຳເລັດ
+            </div>
+          )}
+
+          {activeBooking.status === "completed" && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "8px 14px",
+                background: "#eaf6f1",
+                borderBottom: "1px solid #d9ece5",
+                fontSize: 13,
+                color: "#2f7d6f",
+                fontWeight: 600,
+              }}
+            >
+              <CheckCircle2 size={15} /> ວຽກສຳເລັດແລ້ວ (ລູກຄ້າຢືນຢັນແລ້ວ)
+            </div>
+          )}
+        </>
       )}
 
       <div className="chat-messages">
@@ -407,7 +607,27 @@ function TechnicianChat() {
           const isMe = msg.senderId === myId;
           return (
             <div key={msg.id} className={`chat-bubble-wrap ${isMe ? "chat-bubble-wrap--me" : ""}`}>
-              {msg.type === "image" && msg.imageUrl ? (
+              {msg.type === "booking" ? (
+                <BookingCard msg={msg} isMe={isMe} />
+              ) : msg.type === "booking_request" ? (
+                <div
+                  style={{
+                    maxWidth: 240,
+                    borderRadius: 14,
+                    padding: "10px 14px",
+                    background: isMe ? "#5bb8c4" : "#eaf6f8",
+                    color: isMe ? "#fff" : "#2b7c87",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <CalendarPlus size={15} />
+                  {isMe ? "ໄດ້ຂໍໃຫ້ລູກຄ້າກອກຂໍ້ມູນຈອງແລ້ວ" : "ຂໍໃຫ້ທ່ານກອກຂໍ້ມູນການຈອງ"}
+                </div>
+              ) : msg.type === "image" && msg.imageUrl ? (
                 <img
                   src={msg.imageUrl}
                   alt="ຮູບພາບ"
@@ -438,6 +658,8 @@ function TechnicianChat() {
                   <MapPin size={16} />
                   ເບິ່ງຕໍາແໜ່ງໃນແຜນທີ່
                 </a>
+              ) : msg.type === "audio" && msg.audioUrl ? (
+                <audio controls src={msg.audioUrl} style={{ maxWidth: 230, height: 36 }} />
               ) : (
                 <div
                   className="chat-bubble"
@@ -470,48 +692,99 @@ function TechnicianChat() {
       />
 
       <div className="chat-input-bar">
-        <button
-          type="button"
-          style={iconBtnStyle}
-          onClick={() => cameraInputRef.current?.click()}
-          disabled={uploading}
-          title="ຖ່າຍຮູບ"
-        >
-          <Camera size={20} />
-        </button>
-        <button
-          type="button"
-          style={iconBtnStyle}
-          onClick={() => galleryInputRef.current?.click()}
-          disabled={uploading}
-          title="ສົ່ງຮູບ"
-        >
-          <ImageIcon size={20} />
-        </button>
-        <button
-          type="button"
-          style={iconBtnStyle}
-          onClick={sendLocation}
-          disabled={uploading}
-          title="ສົ່ງຕໍາແໜ່ງ"
-        >
-          <MapPin size={20} />
-        </button>
-        <input
-          type="text"
-          placeholder="ພິມຂໍ້ຄວາມ..."
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-        />
-        <button
-          className="chat-send"
-          style={{ background: "#5bb8c4" }}
-          onClick={sendMessage}
-          disabled={uploading}
-        >
-          <Send size={18} color="#fff" />
-        </button>
+        {isRecording ? (
+          <>
+            <button type="button" style={iconBtnStyle} onClick={cancelRecording} title="ຍົກເລີກ">
+              <Trash2 size={20} color="#e05353" />
+            </button>
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                color: "#e05353",
+                fontWeight: 600,
+              }}
+            >
+              <span
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  background: "#e05353",
+                  display: "inline-block",
+                  animation: "pulse 1s infinite",
+                }}
+              />
+              ກຳລັງບັນທຶກສຽງ... {formatRecordTime(recordSeconds)}
+            </div>
+            <button
+              className="chat-send"
+              style={{ background: "#5bb8c4" }}
+              onClick={stopRecordingAndSend}
+              disabled={uploading}
+              title="ສົ່ງສຽງ"
+            >
+              <Send size={18} color="#fff" />
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              style={iconBtnStyle}
+              onClick={() => cameraInputRef.current?.click()}
+              disabled={uploading}
+              title="ຖ່າຍຮູບ"
+            >
+              <Camera size={20} />
+            </button>
+            <button
+              type="button"
+              style={iconBtnStyle}
+              onClick={() => galleryInputRef.current?.click()}
+              disabled={uploading}
+              title="ສົ່ງຮູບ"
+            >
+              <ImageIcon size={20} />
+            </button>
+            <button
+              type="button"
+              style={iconBtnStyle}
+              onClick={sendLocation}
+              disabled={uploading}
+              title="ສົ່ງຕໍາແໜ່ງ"
+            >
+              <MapPin size={20} />
+            </button>
+            <button
+              type="button"
+              style={iconBtnStyle}
+              onClick={startRecording}
+              disabled={uploading}
+              title="ບັນທຶກສຽງ"
+            >
+              <Mic size={20} />
+            </button>
+            <input
+              type="text"
+              placeholder="ພິມຂໍ້ຄວາມ..."
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+            />
+            <button
+              className="chat-send"
+              style={{ background: "#5bb8c4" }}
+              onClick={sendMessage}
+              disabled={uploading}
+            >
+              <Send size={18} color="#fff" />
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

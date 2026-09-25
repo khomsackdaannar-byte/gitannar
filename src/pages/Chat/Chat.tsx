@@ -1,24 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
-  collection,
   addDoc,
+  collection,
   doc,
   getDoc,
   onSnapshot,
   orderBy,
   query,
-  where,
-  limit,
   serverTimestamp,
   setDoc,
+  where,
 } from "firebase/firestore";
 import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
-import { ArrowLeft, Send, Camera, Image as ImageIcon, MapPin, X, Delete, Globe, Mic, Trash2, CheckCircle2, Star } from "lucide-react";
+import { ArrowLeft, Send, Camera, Image as ImageIcon, MapPin, X, Delete, Globe, Mic, Trash2, CheckCircle2, Star, CalendarPlus, User } from "lucide-react";
 import { db, auth, storage } from "../../firebase/Firebase";
 import { useAuth } from "../../context/Authcontext";
 import { techList, type Technician } from "../../Types/Technician";
 import ReviewModal from "../../component/ReviewModal/ReviewModal";
+import BookingFormModal from "../../component/BookingFormModal/BookingFormModal";
 import "./Chat.css";
 
 // @ts-ignore - leaflet ships its own JS, types are optional (install @types/leaflet if you want them)
@@ -36,17 +36,28 @@ L.Icon.Default.mergeOptions({
 
 interface ChatMessage {
   id: string;
-  type?: "text" | "image" | "location" | "audio";
+  type?: "text" | "image" | "location" | "audio" | "booking" | "booking_request";
   text?: string;
   imageUrl?: string;
   audioUrl?: string;
   lat?: number;
   lng?: number;
+  bookingName?: string;
+  bookingPhone?: string;
+  bookingAddress?: string;
+  bookingTime?: string;
+  bookingPhotoUrl?: string | null;
   senderId: string;
   timestamp?: { seconds: number };
 }
 
-type BookingStatus = "in_progress" | "pending_confirm" | "completed";
+interface Booking {
+  id: string;
+  techPhone: string;
+  customerId: string;
+  status: "in_progress" | "pending_confirm" | "completed";
+  createdAt?: { seconds: number };
+}
 
 const iconBtnStyle: React.CSSProperties = {
   display: "inline-flex",
@@ -214,9 +225,55 @@ function VirtualKeyboard({
   );
 }
 
+function BookingCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
+  return (
+    <div
+      style={{
+        maxWidth: 260,
+        borderRadius: 14,
+        overflow: "hidden",
+        border: "1px solid #dcece7",
+        background: "#fff",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "8px 12px",
+          background: isMe ? "#3d8983" : "#eef3f2",
+          color: isMe ? "#fff" : "#2f7d6f",
+          fontSize: 12.5,
+          fontWeight: 700,
+        }}
+      >
+        <CalendarPlus size={14} /> ຂໍ້ມູນການຈອງ
+      </div>
+      <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
+        {msg.bookingPhotoUrl && (
+          <img
+            src={msg.bookingPhotoUrl}
+            alt="ຮູບບັນຫາ"
+            style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 8, marginBottom: 4, cursor: "pointer" }}
+            onClick={() => window.open(msg.bookingPhotoUrl!, "_blank")}
+          />
+        )}
+        <div style={{ fontSize: 13, color: "#2b3a37", display: "flex", alignItems: "center", gap: 5 }}>
+          <User size={13} color="#3d8983" /> {msg.bookingName}
+        </div>
+        <div style={{ fontSize: 13, color: "#2b3a37" }}>☎ {msg.bookingPhone}</div>
+        <div style={{ fontSize: 13, color: "#2b3a37" }}>📍 {msg.bookingAddress}</div>
+        {msg.bookingTime && <div style={{ fontSize: 13, color: "#2b3a37" }}>🕒 {msg.bookingTime}</div>}
+      </div>
+    </div>
+  );
+}
+
 function Chat() {
   const { phone } = useParams<{ phone: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { customerPhone } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
@@ -245,12 +302,13 @@ function Chat() {
   const mapInstanceRef = useRef<any>(null);
   const markerInstanceRef = useRef<any>(null);
 
-  // ---- Booking (2-stage confirm) + review state ----
-  const [bookingId, setBookingId] = useState<string | null>(null);
-  const [bookingStatus, setBookingStatus] = useState<BookingStatus | null>(null);
-  const creatingBookingRef = useRef(false);
+  // ---- Booking state ----
+  const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
+  const [bookingLoading, setBookingLoading] = useState(true);
   const [marking, setMarking] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showBookingForm, setShowBookingForm] = useState(false);
+  const [hasReview, setHasReview] = useState(false);
 
   const decodedPhone = decodeURIComponent(phone ?? "");
   const staticTech = techList.find((t) => t.phone === decodedPhone);
@@ -347,6 +405,10 @@ function Chat() {
                   ? "📷 ຮູບພາບ"
                   : newest.type === "location"
                   ? "📍 ຕໍາແໜ່ງທີ່ຕັ້ງ"
+                  : newest.type === "booking"
+                  ? "📋 ຂໍ້ມູນການຈອງ"
+                  : newest.type === "booking_request"
+                  ? "📋 ຂໍໃຫ້ກອກຂໍ້ມູນຈອງ"
                   : newest.text ?? "",
               icon: "/logo192.png",
             });
@@ -366,52 +428,62 @@ function Chat() {
     return () => unsubscribe();
   }, [chatRoomId, tech, myId]);
 
-  // ---- ຫາ/ສ້າງ booking ຂອງຫ້ອງແຊັດນີ້ (auto-create ຄັ້ງທຳອິດທີ່ເປີດແຊັດ) ----
+  // ---- ຟັງການຈອງ (booking) ຫຼ້າສຸດ ຂອງລູກຄ້າ-ຊ່າງຄູ່ນີ້ (ບໍ່ສ້າງອັດຕະໂນມັດອີກຕໍ່ໄປ) ----
   useEffect(() => {
-    if (!tech || chatRoomId === "unknown") {
-      setBookingId(null);
-      setBookingStatus(null);
-      return;
-    }
+    if (!tech || myId === "anonymous") return;
 
     const q = query(
       collection(db, "bookings"),
-      where("chatId", "==", chatRoomId),
-      orderBy("createdAt", "desc"),
-      limit(1)
+      where("techPhone", "==", tech.phone),
+      where("customerId", "==", myId),
+      orderBy("createdAt", "desc")
     );
 
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      if (!snapshot.empty) {
-        const d = snapshot.docs[0];
-        setBookingId(d.id);
-        setBookingStatus((d.data().status as BookingStatus) ?? "in_progress");
-        return;
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        if (snapshot.empty) {
+          setActiveBooking(null);
+        } else {
+          const latest = snapshot.docs[0];
+          setActiveBooking({ id: latest.id, ...latest.data() } as Booking);
+        }
+        setBookingLoading(false);
+      },
+      (err) => {
+        console.error("booking query error:", err.message);
+        setBookingLoading(false);
       }
-
-      // ຍັງບໍ່ມີ booking ໃດເລີຍສຳລັບຫ້ອງແຊັດນີ້ — ສ້າງອັນທຳອິດ (ກັນສ້າງຊ້ຳກັນ)
-      if (creatingBookingRef.current) return;
-      creatingBookingRef.current = true;
-      try {
-        await addDoc(collection(db, "bookings"), {
-          chatId: chatRoomId,
-          techPhone: tech.phone,
-          techName: tech.name,
-          customerId: myId,
-          customerName: auth.currentUser?.displayName || "ລູກຄ້າ",
-          status: "in_progress",
-          createdAt: serverTimestamp(),
-        });
-        // onSnapshot ຈະຮັບຮູ້ doc ໃໝ່ໂດຍອັດຕະໂນມັດ, ບໍ່ຕ້ອງ setState ເອງ
-      } catch (err) {
-        console.error("Auto-create booking failed:", err);
-      } finally {
-        creatingBookingRef.current = false;
-      }
-    });
-
+    );
     return () => unsubscribe();
-  }, [tech, chatRoomId, myId]);
+  }, [tech, myId]);
+
+  // ---- ຖ້າມາຈາກໜ້າ Detail ດ້ວຍ ?book=1 ໃຫ້ເປີດແບບຟອມການຈອງອັດຕະໂນມັດ ----
+  useEffect(() => {
+    if (!bookingLoading && searchParams.get("book") === "1" && (!activeBooking || activeBooking.status === "completed")) {
+      setShowBookingForm(true);
+      searchParams.delete("book");
+      setSearchParams(searchParams, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingLoading, activeBooking]);
+
+  // ---- ເບິ່ງວ່າການຈອງນີ້ຮີວິວແລ້ວບໍ່ ----
+  useEffect(() => {
+    if (!activeBooking || activeBooking.status !== "completed") {
+      setHasReview(false);
+      return;
+    }
+    let cancelled = false;
+    getDoc(doc(db, "reviews", activeBooking.id))
+      .then((snap) => {
+        if (!cancelled) setHasReview(snap.exists());
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [activeBooking]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -434,19 +506,14 @@ function Chat() {
     );
   };
 
-  // ---- ລູກຄ້າຢືນຢັນຂັ້ນຕອນທີ 2: ຊ່າງແຈ້ງແລ້ວ, ລູກຄ້າຮັບຮອງວ່າສຳເລັດແທ້ ----
-  const confirmJobDone = async () => {
-    if (!bookingId) return;
-    if (!window.confirm("ຢືນຢັນວ່າວຽກນີ້ສຳເລັດແລ້ວແທ້ບໍ່?")) return;
+  // ---- ລູກຄ້າຢືນຢັນວ່າວຽກສຳເລັດແທ້ (ຫຼັງຊ່າງກົດ "ວຽກແລ້ວ") ----
+  const confirmBookingDone = async () => {
+    if (!activeBooking) return;
     setMarking(true);
     try {
       await setDoc(
-        doc(db, "bookings", bookingId),
-        {
-          status: "completed",
-          confirmedAt: serverTimestamp(),
-          confirmedBy: myId,
-        },
+        doc(db, "bookings", activeBooking.id),
+        { status: "completed", confirmedAt: serverTimestamp() },
         { merge: true }
       );
     } catch (err) {
@@ -457,6 +524,14 @@ function Chat() {
     }
   };
 
+  // ---- ກົດ "ວຽກສຳເລັດແລ້ວ": ຖ້າຍັງບໍ່ໄດ້ຢືນຢັນ ໃຫ້ຢືນຢັນກ່ອນ ຈາກນັ້ນເປີດ popup ໃຫ້ຄະແນນ/ຣີວິວທັນທີ ----
+  const handleJobDoneClick = async () => {
+    if (!activeBooking) return;
+    if (activeBooking.status !== "completed") {
+      await confirmBookingDone();
+    }
+    setShowReviewModal(true);
+  };
   const sendMessage = async () => {
     const value = text.trim();
     if (!value || !tech || chatRoomId === "unknown") return;
@@ -494,9 +569,6 @@ function Chat() {
       });
       await touchChatRoomMeta("📷 ຮູບພາບ");
     } catch (err: any) {
-      // Surface the real Firebase error so we can see WHY it's failing
-      // (most common cause: Storage security rules rejecting the write,
-      // or the storage bucket not being configured yet)
       console.error("Image upload failed:", err);
       alert(
         "ສົ່ງຮູບບໍ່ສຳເລັດ: " +
@@ -618,7 +690,6 @@ function Chat() {
     setShowMapPicker(true);
   };
 
-  // Initialize the Leaflet map once the picker modal is shown
   useEffect(() => {
     if (!showMapPicker || !mapDivRef.current) return;
 
@@ -646,7 +717,6 @@ function Chat() {
       markerInstanceRef.current = marker;
       setPickedPos({ lat: c[0], lng: c[1] });
 
-      // Leaflet needs a resize kick when it's mounted inside a modal
       setTimeout(() => map.invalidateSize(), 100);
     };
 
@@ -656,7 +726,7 @@ function Chat() {
           center = [pos.coords.latitude, pos.coords.longitude];
           initMap(center);
         },
-        () => initMap(center), // permission denied / unavailable -> fallback center
+        () => initMap(center),
         { enableHighAccuracy: true, timeout: 8000 }
       );
     } else {
@@ -739,13 +809,14 @@ function Chat() {
         <h1>ແຊັດກັບ {tech.name}</h1>
       </header>
 
-      {/* ---------------- Job status bar (booking-based, 2-stage confirm) ---------------- */}
-      {bookingStatus === "completed" ? (
+      {/* ---------------- Booking status bar (ອັນດຽວ, ລວມທຸກຂັ້ນຕອນ) ---------------- */}
+      {!bookingLoading && activeBooking && !(activeBooking.status === "completed" && hasReview) && (
         <div
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            gap: 8,
             padding: "8px 14px",
             background: "#eaf6f1",
             borderBottom: "1px solid #d9ece5",
@@ -756,78 +827,33 @@ function Chat() {
               display: "flex",
               alignItems: "center",
               gap: 6,
-              fontSize: 13,
+              fontSize: 12.5,
               color: "#2f7d6f",
               fontWeight: 600,
             }}
           >
-            <CheckCircle2 size={15} /> ວຽກສຳເລັດແລ້ວ
+            <CheckCircle2 size={15} /> ວຽກສຳເລັດແລ້ວບໍ?
           </span>
           <button
-            onClick={() => setShowReviewModal(true)}
+            onClick={handleJobDoneClick}
+            disabled={marking}
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 4,
+              gap: 5,
               border: "none",
               background: "#3d8983",
               color: "#fff",
               borderRadius: 20,
-              padding: "6px 12px",
-              fontSize: 13,
+              padding: "6px 13px",
+              fontSize: 12.5,
               fontWeight: 600,
               cursor: "pointer",
             }}
           >
-            <Star size={14} /> ໃຫ້ຄະແນນ
+            <Star size={13} /> {marking ? "..." : "ວຽກສຳເລັດແລ້ວ"}
           </button>
         </div>
-      ) : bookingStatus === "pending_confirm" ? (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "8px 14px",
-            background: "#fff7e6",
-            borderBottom: "1px solid #f3e6c4",
-          }}
-        >
-          <span style={{ fontSize: 13, color: "#8a6d1f", fontWeight: 600 }}>
-            ຊ່າງແຈ້ງວ່າວຽກສຳເລັດແລ້ວ
-          </span>
-          <button
-            onClick={confirmJobDone}
-            disabled={marking}
-            style={{
-              border: "none",
-              background: "#e0a52e",
-              color: "#fff",
-              borderRadius: 20,
-              padding: "6px 12px",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              opacity: marking ? 0.7 : 1,
-            }}
-          >
-            {marking ? "ກຳລັງຢືນຢັນ..." : "✓ ຢືນຢັນວ່າສຳເລັດ"}
-          </button>
-        </div>
-      ) : (
-        bookingStatus === "in_progress" && (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              padding: "6px 14px",
-              background: "#f5f7f6",
-              borderBottom: "1px solid #eceeed",
-            }}
-          >
-            <span style={{ fontSize: 12, color: "#888" }}>ວຽກກຳລັງດຳເນີນການ...</span>
-          </div>
-        )
       )}
 
       <div className="chat-messages">
@@ -839,7 +865,60 @@ function Chat() {
           const isMe = msg.senderId === myId;
           return (
             <div key={msg.id} className={`chat-bubble-wrap ${isMe ? "chat-bubble-wrap--me" : ""}`}>
-              {msg.type === "image" && msg.imageUrl ? (
+              {msg.type === "booking" ? (
+                <BookingCard msg={msg} isMe={isMe} />
+              ) : msg.type === "booking_request" ? (
+                isMe ? (
+                  <div
+                    style={{
+                      maxWidth: 240,
+                      borderRadius: 14,
+                      padding: "10px 14px",
+                      background: "#3d8983",
+                      color: "#fff",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <CalendarPlus size={15} /> ຂໍໃຫ້ຊ່າງກອກຂໍ້ມູນຈອງແລ້ວ
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      maxWidth: 260,
+                      borderRadius: 14,
+                      padding: "12px 14px",
+                      background: "#eef6f4",
+                      border: "1px solid #d9ece5",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 8,
+                    }}
+                  >
+                    <span style={{ fontSize: 13, color: "#2f7d6f", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                      <CalendarPlus size={15} /> ຊ່າງຂໍໃຫ້ທ່ານກອກຂໍ້ມູນການຈອງ
+                    </span>
+                    <button
+                      onClick={() => setShowBookingForm(true)}
+                      style={{
+                        border: "none",
+                        background: "#3d8983",
+                        color: "#fff",
+                        borderRadius: 10,
+                        padding: "8px 0",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      ກອກຂໍ້ມູນຈອງເລີຍ
+                    </button>
+                  </div>
+                )
+              ) : msg.type === "image" && msg.imageUrl ? (
                 <img
                   src={msg.imageUrl}
                   alt="ຮູບພາບ"
@@ -1108,15 +1187,29 @@ function Chat() {
         </div>
       )}
 
-      {/* ---------------- Review modal (now bound to bookingId) ---------------- */}
-      {showReviewModal && tech && myId !== "anonymous" && bookingId && (
+      {/* ---------------- Review modal ---------------- */}
+      {showReviewModal && tech && activeBooking && myId !== "anonymous" && (
         <ReviewModal
-          bookingId={bookingId}
+          bookingId={activeBooking.id}
           techPhone={tech.phone}
           techName={tech.name}
           customerId={myId}
           customerName={auth.currentUser?.displayName || "ລູກຄ້າ"}
           onClose={() => setShowReviewModal(false)}
+          onSaved={() => setHasReview(true)}
+        />
+      )}
+
+      {/* ---------------- Booking form modal ---------------- */}
+      {showBookingForm && tech && myId !== "anonymous" && chatRoomId !== "unknown" && (
+        <BookingFormModal
+          techPhone={tech.phone}
+          techName={tech.name}
+          customerId={myId}
+          chatRoomId={chatRoomId}
+          defaultName={auth.currentUser?.displayName || ""}
+          defaultPhone={customerPhone || ""}
+          onClose={() => setShowBookingForm(false)}
         />
       )}
     </div>

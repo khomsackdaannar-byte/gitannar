@@ -16,6 +16,7 @@ const categoryOptions: { value: TechCategoryType; label: string; type: string; i
   { value: TechCategory.beauty, label: "ຊ່າງເສີມສວຍ", type: "ເສີມສວຍ", icon: "content_cut" },
   { value: TechCategory.carRepair, label: "ຊ່າງສ້ອມແປງລົດ", type: "ສ້ອມແປງລົດ", icon: "car_repair" },
   { value: TechCategory.phoneRepair, label: "ຊ່າງສ້ອມແປງໂທລະສັບ", type: "ສ້ອມແປງໂທລະສັບ", icon: "phone_android" },
+   { value: TechCategory.airRepair, label: "ຊ່າງແອ", type: "ຊ່າງແອ", icon: "air_repair" },
 ];
 
 const vientianeDistricts = [
