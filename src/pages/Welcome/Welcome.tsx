@@ -81,7 +81,7 @@ function Welcome() {
         </div>
 
         <div className="welcome-hero__box">
-          <Wrench size={90} color="#fff" />
+          {/* <Wrench size={90} color="#fff" /> */}
         </div>
         <button className="welcome-skip" onClick={() => navigate("/login")}>
           {t.welcome.skip}

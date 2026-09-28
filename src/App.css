@@ -2,6 +2,7 @@
   --color-primary: #009688;
   --color-primary-dark: #00695c;
   --color-on-primary: #ffffff;
+  --font-lao: "Noto Sans Lao Variable", sans-serif;
 }
 
 * {
@@ -10,8 +11,13 @@
   padding: 0;
 }
 
-body {
-  font-family: "Noto Sans Lao", "Roboto", sans-serif;
+html,
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-lao);
 }
 /* ຈຳກັດຄວາມກວ້າງແອັບໃຫ້ຄ້າຍໜ້າຈໍມືຖື ເວລາເປີດຢູ່ desktop */
 body {

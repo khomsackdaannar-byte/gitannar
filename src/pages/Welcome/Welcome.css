@@ -20,16 +20,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 260px;
+  min-height: 350px;
+  background-image: url('/image/bg.jpg');
+  background-size: cover;      
+  background-position: center;  
+  background-repeat: no-repeat; 
 }
 
 .welcome-skip {
   position: absolute;
   top: 20px;
-  right: 24px;
+  right: 30px;
   background: none;
+  padding: 5px 8px;
+  border-radius: 8px;
   border: none;
   color: #fff;
+  background-color: #8fd3db;
   font-weight: 600;
   font-size: 15px;
   cursor: pointer;
@@ -40,6 +47,7 @@
   top: 20px;
   left: 24px;
   z-index: 2;
+  background-color: color-teal;
 }
 
 .welcome-content {
@@ -48,6 +56,7 @@
   flex-direction: column;
   justify-content: center;
   padding: 24px 28px 12px;
+  
 }
 
 .welcome-title {
