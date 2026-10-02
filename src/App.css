@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 @font-face {
   font-family: "Phetsarath";
   src: url("./assets/fonts/Phetsarath-Regular.ttf") format("truetype");
@@ -11,13 +10,7 @@
   --color-primary: #009688;
   --color-primary-dark: #00695c;
   --color-on-primary: #ffffff;
-=======
-:root {
-  --color-primary: #009688;
-  --color-primary-dark: #00695c;
-  --color-on-primary: #ffffff;
-  --font-lao: "Noto Sans Lao Variable", sans-serif;
->>>>>>> 4768902052ac056d7d6f8fdd8883f517ad3d3100
+  --font-lao: "Phetsarath", "Noto Sans Lao Variable", sans-serif;
 }
 
 * {
@@ -26,11 +19,6 @@
   padding: 0;
 }
 
-<<<<<<< HEAD
-body {
-  font-family: "Phetsarath", "Noto Sans Lao", "Roboto", sans-serif;
-}
-=======
 html,
 body,
 button,
@@ -39,7 +27,7 @@ select,
 textarea {
   font-family: var(--font-lao);
 }
->>>>>>> 4768902052ac056d7d6f8fdd8883f517ad3d3100
+
 /* ຈຳກັດຄວາມກວ້າງແອັບໃຫ້ຄ້າຍໜ້າຈໍມືຖື ເວລາເປີດຢູ່ desktop */
 body {
   background: #ebebeb;
