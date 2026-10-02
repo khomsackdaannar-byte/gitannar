@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { updateProfile } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "../../firebase/Firebase";
 import { useAuth } from "../../context/Authcontext";
@@ -16,7 +15,7 @@ const categoryOptions: { value: TechCategoryType; label: string; type: string; i
   { value: TechCategory.beauty, label: "ຊ່າງເສີມສວຍ", type: "ເສີມສວຍ", icon: "content_cut" },
   { value: TechCategory.carRepair, label: "ຊ່າງສ້ອມແປງລົດ", type: "ສ້ອມແປງລົດ", icon: "car_repair" },
   { value: TechCategory.phoneRepair, label: "ຊ່າງສ້ອມແປງໂທລະສັບ", type: "ສ້ອມແປງໂທລະສັບ", icon: "phone_android" },
-   { value: TechCategory.airRepair, label: "ຊ່າງແອ", type: "ຊ່າງແອ", icon: "air_repair" },
+  { value: TechCategory.airRepair, label: "ຊ່າງແອ", type: "ຊ່າງແອ", icon: "air_repair" },
 ];
 
 const vientianeDistricts = [
@@ -107,7 +106,7 @@ function TechnicianRegister() {
       return;
     }
     if (!idCardFile) {
-      setError("ກະລຸນາແນບຮູບບັດປະຈຳຕົວ ຫຼື ສຳມະໂນຄົວ");
+      setError("ກະລຸນາແນບຮູບບັດປະຈຳຕົວ ສຳມະໂນຄົວ ຫລື ໃບຢັ້ງຢືນອາຊີບຊ່າງ");
       return;
     }
 
@@ -140,23 +139,24 @@ function TechnicianRegister() {
 
     setLoading(true);
     try {
-      await confirmPhoneOtp(otp);
+      // role = "technician": ບອກ Authcontext ວ່ານີ້ແມ່ນການລົງທະບຽນ "ຊ່າງ"
+      // ຈະໄດ້ບໍ່ໄປຂຽນທັບ customerPhone ຂອງລູກຄ້າ (ຖ້າ browser ດຽວກັນເຄີຍເຂົ້າສູ່ລະບົບລູກຄ້າໄວ້)
+      await confirmPhoneOtp(otp, "technician");
 
       const user = auth.currentUser;
       const selected = categoryOptions.find((c) => c.value === category)!;
       const fullName = `${firstName.trim()} ${lastName.trim()}`;
 
       if (user) {
-        await updateProfile(user, { displayName: fullName });
+        // ໝາຍເຫດ: ບໍ່ອັບເດດ displayName ຂອງ Firebase Auth ອີກຕໍ່ໄປ —
+        // uid ນີ້ແມ່ນ anonymous session ທີ່ອາດຈະຖືກໃຊ້ຮ່ວມກັນລະຫວ່າງບັນຊີລູກຄ້າ
+        // ແລະ ຊ່າງຢູ່ browser ດຽວກັນ, ການຂຽນ displayName ຢູ່ນີ້ຈະໄປຂຽນທັບ
+        // ຊື່ລູກຄ້າທີ່ເຄີຍເຂົ້າສູ່ລະບົບໄວ້ (displayName ເປັນຄ່າດຽວຕໍ່ 1 Auth user,
+        // ບໍ່ແຍກຕາມ role) — ຊື່ຊ່າງຖືກເກັບຄົບຢູ່ technicians/{phone} ຢູ່ແລ້ວ
 
-        await setDoc(doc(db, "users", user.uid), {
-          uid: user.uid,
-          name: fullName,
-          phone: phone.trim(),
-          role: "technician",
-          createdAt: new Date(),
-        });
-
+        // ໝາຍເຫດ: ບໍ່ຂຽນ users/{uid} ອີກຕໍ່ໄປ — ຂໍ້ມູນຊ່າງເກັບຄົບຢູ່ technicians/{phone} ຢູ່ແລ້ວ
+        // (ໃຊ້ເບີໂທເປັນ key, ບໍ່ອີງໃສ່ Firebase Auth uid ທີ່ອາດຈະຖືກໃຊ້ຮ່ວມກັນລະຫວ່າງ
+        // ບັນຊີລູກຄ້າ ແລະ ຊ່າງຢູ່ browser ດຽວກັນ)
         await setDoc(doc(db, "technicians", phone.trim()), {
           firstName: firstName.trim(),
           lastName: lastName.trim(),

@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "Phetsarath";
+  src: url("./assets/fonts/Phetsarath-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --color-primary: #009688;
   --color-primary-dark: #00695c;
@@ -11,7 +19,7 @@
 }
 
 body {
-  font-family: "Noto Sans Lao", "Roboto", sans-serif;
+  font-family: "Phetsarath", "Noto Sans Lao", "Roboto", sans-serif;
 }
 /* ຈຳກັດຄວາມກວ້າງແອັບໃຫ້ຄ້າຍໜ້າຈໍມືຖື ເວລາເປີດຢູ່ desktop */
 body {

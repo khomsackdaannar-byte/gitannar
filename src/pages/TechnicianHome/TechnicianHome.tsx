@@ -71,6 +71,77 @@ function isUnread(room: ChatRoom, myId: string) {
   return room.lastTimestamp.seconds > room.techLastRead.seconds;
 }
 
+// ---------------- Review detail modal (ກົດການ໌ດເພື່ອເບິ່ງລາຍລະອຽດເຕັມ) ----------------
+function ReviewDetailModal({ review, onClose }: { review: Review; onClose: () => void }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.55)",
+        zIndex: 1200,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 16,
+          width: "100%",
+          maxWidth: 380,
+          maxHeight: "85vh",
+          overflowY: "auto",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "14px 16px",
+            borderBottom: "1px solid #eee",
+          }}
+        >
+          <strong style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 16 }}>
+            <Star size={17} color="#f5a623" fill="#f5a623" /> ລາຍລະອຽດຣີວິວ
+          </strong>
+          <button onClick={onClose} style={{ border: "none", background: "transparent", cursor: "pointer" }}>
+            <X size={22} />
+          </button>
+        </div>
+
+        <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 600 }}>
+            <User size={17} color="#3d8983" /> {review.customerName}
+          </div>
+          <div style={{ display: "flex", gap: 4 }}>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Star
+                key={i}
+                size={20}
+                fill={i < review.rating ? "#f5a623" : "none"}
+                color="#f5a623"
+              />
+            ))}
+          </div>
+          {review.comment ? (
+            <p style={{ fontSize: 15, color: "#2b3a37", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap" }}>
+              {review.comment}
+            </p>
+          ) : (
+            <p style={{ fontSize: 14, color: "#999", margin: 0 }}>ລູກຄ້າບໍ່ໄດ້ຂຽນຄອມເມັ້ນ</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TechnicianHome() {
   const { phone } = useParams<{ phone: string }>();
   const navigate = useNavigate();
@@ -94,6 +165,7 @@ function TechnicianHome() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(true);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
+  const [selectedReview, setSelectedReview] = useState<Review | null>(null);
 
   const decodedPhone = decodeURIComponent(phone ?? "");
   const staticTech = techList.find((t) => t.phone === decodedPhone);
@@ -482,7 +554,12 @@ function TechnicianHome() {
               <p className="tech-home-status">ຍັງບໍ່ມີຣີວິວ</p>
             )}
             {reviews.map((r) => (
-              <div key={r.id} className="tech-home-review-item">
+              <div
+                key={r.id}
+                className="tech-home-review-item"
+                onClick={() => setSelectedReview(r)}
+                style={{ cursor: "pointer" }}
+              >
                 <div className="tech-home-review-header">
                   <span className="tech-home-review-name">{r.customerName}</span>
                   <span className="tech-home-review-stars">
@@ -496,7 +573,20 @@ function TechnicianHome() {
                     ))}
                   </span>
                 </div>
-                {r.comment && <p className="tech-home-review-comment">{r.comment}</p>}
+                {r.comment && (
+                  <p
+                    className="tech-home-review-comment"
+                    style={{
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                    }}
+                  >
+                    {r.comment}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -564,6 +654,10 @@ function TechnicianHome() {
             onClick={(e) => e.stopPropagation()}
           />
         </div>
+      )}
+
+      {selectedReview && (
+        <ReviewDetailModal review={selectedReview} onClose={() => setSelectedReview(null)} />
       )}
     </div>
   );

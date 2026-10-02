@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { getTechIcon } from "../../Utils/Icon";
 import {
   ArrowLeft,
@@ -11,27 +11,143 @@ import {
   Star,
   Phone,
   CalendarCheck,
+  Banknote,
+  X,
+  ChevronRight,
 } from "lucide-react";
 import { db } from "../../firebase/Firebase";
 import { techList, type Technician } from "../../Types/Technician";
 import { useTechnicianPhotos } from "../../hooks/useTechnicianPhotos";
 import "./Detail.css";
 
+// ລາຄາບໍລິການແບບຄົງທີ່ ໃຊ້ຄືກັນທຸກຊ່າງ
+const PRICE_RANGE_TEXT = "100,000 - 300,000 ກີບ";
+
+interface Review {
+  id: string;
+  customerName: string;
+  rating: number;
+  comment: string;
+}
+
 function InfoRow({
   icon: Icon,
   label,
   value,
+  onClick,
 }: {
   icon: typeof MapPin;
   label: string;
   value: string;
+  onClick?: () => void;
 }) {
   return (
-    <div className="info-row">
+    <div
+      className="info-row"
+      onClick={onClick}
+      style={onClick ? { cursor: "pointer" } : undefined}
+    >
       <Icon size={20} color="var(--color-primary)" />
-      <div>
+      <div style={{ flex: 1 }}>
         <p className="info-row__label">{label}</p>
         <p className="info-row__value">{value}</p>
+      </div>
+      {onClick && <ChevronRight size={18} color="#b7c2bf" />}
+    </div>
+  );
+}
+
+// ---------------- Reviews list modal (ລູກຄ້າກົດເບິ່ງວ່າໃຜລີວິວແນວໃດແດ່) ----------------
+function ReviewsListModal({
+  techName,
+  reviews,
+  loading,
+  onClose,
+}: {
+  techName: string;
+  reviews: Review[];
+  loading: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.55)",
+        zIndex: 1200,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 16,
+          width: "100%",
+          maxWidth: 420,
+          maxHeight: "80vh",
+          display: "flex",
+          flexDirection: "column",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "14px 16px",
+            borderBottom: "1px solid #eee",
+            flexShrink: 0,
+          }}
+        >
+          <strong style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 16 }}>
+            <Star size={17} color="#f5a623" fill="#f5a623" /> ລີວິວຈາກລູກຄ້າ · {techName}
+          </strong>
+          <button onClick={onClose} style={{ border: "none", background: "transparent", cursor: "pointer" }}>
+            <X size={22} />
+          </button>
+        </div>
+
+        <div style={{ overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+          {loading && <p style={{ color: "#888", fontSize: 14 }}>ກຳລັງໂຫລດ...</p>}
+          {!loading && reviews.length === 0 && (
+            <p style={{ color: "#888", fontSize: 14 }}>ຍັງບໍ່ມີລີວິວ</p>
+          )}
+          {reviews.map((r) => (
+            <div
+              key={r.id}
+              style={{
+                background: "#f5f8f7",
+                borderRadius: 12,
+                padding: "10px 12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                  <User size={14} color="#3d8983" /> {r.customerName}
+                </span>
+                <span style={{ display: "flex", gap: 1 }}>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star key={i} size={13} fill={i < r.rating ? "#f5a623" : "none"} color="#f5a623" />
+                  ))}
+                </span>
+              </div>
+              {r.comment && (
+                <p style={{ margin: 0, fontSize: 13.5, color: "#44504d", whiteSpace: "pre-wrap" }}>
+                  {r.comment}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -48,6 +164,11 @@ function Detail() {
 
   const [tech, setTech] = useState<Technician | null>(staticTech ?? null);
   const [techLoading, setTechLoading] = useState(!staticTech);
+
+  // ---- Reviews state ----
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
 
   useEffect(() => {
     if (staticTech) {
@@ -103,6 +224,34 @@ function Detail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [decodedPhone]);
 
+  // ---- ຟັງ (real-time) ລາຍການລີວິວທັງໝົດຂອງຊ່າງຄົນນີ້ ----
+  useEffect(() => {
+    if (!tech) return;
+    const q = query(
+      collection(db, "reviews"),
+      where("technicianPhone", "==", tech.phone),
+      orderBy("createdAt", "desc")
+    );
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const docs = snapshot.docs.map((d) => ({
+          id: d.id,
+          customerName: d.data().customerName ?? "ລູກຄ້າ",
+          rating: d.data().rating ?? 0,
+          comment: d.data().comment ?? "",
+        }));
+        setReviews(docs);
+        setReviewsLoading(false);
+      },
+      (err) => {
+        console.error("reviews query error:", err.message);
+        setReviewsLoading(false);
+      }
+    );
+    return () => unsubscribe();
+  }, [tech]);
+
   const Icon = tech ? getTechIcon(tech.icon) : MapPin;
   const image = tech ? photoMap[tech.phone] || tech.image : undefined;
 
@@ -152,6 +301,8 @@ function Detail() {
         <div className="detail-card">
           <InfoRow icon={MapPin} label="ພື້ນທີ່ບໍລິການ" value={tech.area} />
           <hr />
+          <InfoRow icon={Banknote} label="ລາຄາບໍລິການ" value={PRICE_RANGE_TEXT} />
+          <hr />
           {tech.address && (
             <>
               <InfoRow icon={HomeIcon} label="ບ້ານ, ເມືອງ, ແຂວງ" value={tech.address} />
@@ -176,7 +327,12 @@ function Detail() {
               <hr />
             </>
           )}
-          <InfoRow icon={Star} label="ຄະແນນລີວິວ" value={`${tech.rating} / 5.0`} />
+          <InfoRow
+            icon={Star}
+            label="ຄະແນນລີວິວ (ກົດເພື່ອເບິ່ງລາຍລະອຽດ)"
+            value={`${tech.rating} / 5.0 · ${reviews.length} ລີວິວ`}
+            onClick={() => setShowReviewsModal(true)}
+          />
           <hr />
           <InfoRow icon={Phone} label="ເບີໂທ" value={tech.phone} />
         </div>
@@ -205,6 +361,15 @@ function Detail() {
             </button>
           </div>
         </div>
+      )}
+
+      {showReviewsModal && (
+        <ReviewsListModal
+          techName={tech.name}
+          reviews={reviews}
+          loading={reviewsLoading}
+          onClose={() => setShowReviewsModal(false)}
+        />
       )}
     </div>
   );

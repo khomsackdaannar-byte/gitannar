@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
+import { signInAnonymously } from "firebase/auth";
 import { HardHat } from "lucide-react";
-import { db } from "../../firebase/Firebase";
+import { auth, db } from "../../firebase/Firebase";
 import { techList } from "../../Types/Technician";
 import "./TechnicianLogin.css";
 
@@ -12,14 +13,8 @@ function TechnicianLogin() {
   const [errorText, setErrorText] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // ★ ຕອນເປີດໜ້ານີ້ ໃຫ້ເຊັກກ່ອນວ່າເຄີຍ login ໄວ້ບໍ
-  useEffect(() => {
-    const savedPhone = localStorage.getItem("tech_logged_in_phone");
-    if (savedPhone) {
-      navigate(`/technician-home/${encodeURIComponent(savedPhone)}`, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // ໝາຍເຫດ: ຕັ້ງໃຈ "ບໍ່" ກວດ localStorage ແລ້ວ auto-redirect ອີກຕໍ່ໄປ —
+  // ຕ້ອງໃຫ້ພິມເບີທຸກຄັ້ງ ເພື່ອໃຫ້ສາມາດສະຫຼັບໄປ login ເປັນຊ່າງຄົນອື່ນໄດ້
 
   const handleLogin = async () => {
     const value = phone.trim();
@@ -34,21 +29,29 @@ function TechnicianLogin() {
     try {
       // ຫາໃນ techList ຄົງທີ່ກ່ອນ
       const staticTech = techList.find((t) => t.phone === value);
-      if (staticTech) {
-        localStorage.setItem("tech_logged_in_phone", staticTech.phone);
-        navigate(`/technician-home/${encodeURIComponent(staticTech.phone)}`, { replace: true });
-        return;
-      }
+      let techExists = !!staticTech;
 
       // ຖ້າບໍ່ພົບ, ໄປຫາໃນ Firestore (ຊ່າງທີ່ລົງທະບຽນຜ່ານແອັບ)
-      const snap = await getDoc(doc(db, "technicians", value));
-      if (snap.exists()) {
-        localStorage.setItem("tech_logged_in_phone", value);
-        navigate(`/technician-home/${encodeURIComponent(value)}`, { replace: true });
+      if (!techExists) {
+        const snap = await getDoc(doc(db, "technicians", value));
+        techExists = snap.exists();
+      }
+
+      if (!techExists) {
+        setErrorText("ບໍ່ພົບເບີໂທນີ້ໃນລະບົບຊ່າງ");
+        setLoading(false);
         return;
       }
 
-      setErrorText("ບໍ່ພົບເບີໂທນີ້ໃນລະບົບຊ່າງ");
+      // ສຳຄັນ: ຕ້ອງ sign-in ກັບ Firebase Auth ຈິງ (ບໍ່ອີງແຕ່ localStorage)
+      // ບໍ່ດັ່ງນັ້ນ Firestore rules (request.auth != null) ຈະບລັອກທຸກການອ່ານ/ຂຽນ
+      // ຂອງຊ່າງ ທັນທີທີ່ບໍ່ມີ session ອື່ນໃຫ້ "ຢືມ" ຈາກ tab ອື່ນແລ້ວ
+      if (!auth.currentUser) {
+        await signInAnonymously(auth);
+      }
+
+      localStorage.setItem("tech_logged_in_phone", value);
+      navigate(`/technician-home/${encodeURIComponent(value)}`, { replace: true });
     } catch (err) {
       console.error(err);
       setErrorText("ເກີດຂໍ້ຜິດພາດ, ກະລຸນາລອງໃໝ່");

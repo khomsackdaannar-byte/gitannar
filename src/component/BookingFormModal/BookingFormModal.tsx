@@ -15,6 +15,23 @@ interface BookingFormModalProps {
   onCreated?: () => void;
 }
 
+// ຊົ່ວໂມງແບບ 24 ຊົ່ວໂມງ: 00 - 23 (ບໍ່ໃຊ້ AM/PM)
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+// ນາທີ: 00, 05, 10, ... 55 (ທຸກ 5 ນາທີ, ພຽງພໍສຳລັບນັດໝາຍ)
+const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, "0"));
+
+// ປ່ຽນ "2026-09-23" + "14:30" -> "23/09/2026 ເວລາ 14:30 ໂມງ"
+function formatPreferredDateTime(dateStr: string, timeStr: string) {
+  if (!dateStr && !timeStr) return "";
+  let datePart = "";
+  if (dateStr) {
+    const [year, month, day] = dateStr.split("-");
+    datePart = `${day}/${month}/${year}`;
+  }
+  const timePart = timeStr ? `ເວລາ ${timeStr} ໂມງ` : "";
+  return [datePart, timePart].filter(Boolean).join(" ");
+}
+
 /**
  * ແບບຟອມ "ຈອງບໍລິການ" — ກອກຊື່, ເບີໂທ, ທີ່ຢູ່, ວັນ-ເວລາທີ່ສະດວກ, ຮູບປະກອບບັນຫາ
  * ຫຼັງກົດຢືນຢັນ: ສ້າງ booking doc ໃໝ່ + ສົ່ງຂໍ້ມູນນີ້ເປັນຂໍ້ຄວາມພິເສດເຂົ້າໄປໃນຫ້ອງແຊັດ
@@ -33,7 +50,11 @@ function BookingFormModal({
   const [name, setName] = useState(defaultName);
   const [phoneNum, setPhoneNum] = useState(defaultPhone);
   const [address, setAddress] = useState("");
-  const [preferredTime, setPreferredTime] = useState("");
+  const [preferredDate, setPreferredDate] = useState("");
+  const [preferredHour, setPreferredHour] = useState("");
+  const [preferredMinute, setPreferredMinute] = useState("");
+  const preferredTimeOfDay =
+    preferredHour && preferredMinute ? `${preferredHour}:${preferredMinute}` : "";
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -55,6 +76,8 @@ function BookingFormModal({
       return;
     }
 
+    const preferredTime = formatPreferredDateTime(preferredDate, preferredTimeOfDay);
+
     setSaving(true);
     try {
       let photoUrl: string | undefined;
@@ -73,6 +96,8 @@ function BookingFormModal({
         customerName: name.trim(),
         customerContactPhone: phoneNum.trim(),
         address: address.trim(),
+        preferredDate,
+        preferredTimeOfDay,
         preferredTime: preferredTime.trim(),
         photoUrl: photoUrl ?? null,
         status: "in_progress",
@@ -183,14 +208,46 @@ function BookingFormModal({
             <input style={inputStyle} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="ບ້ານ, ເມືອງ, ແຂວງ" />
           </div>
 
-          <div>
-            <label style={labelStyle}>ວັນ-ເວລາທີ່ສະດວກໃຫ້ມາ</label>
-            <input
-              style={inputStyle}
-              value={preferredTime}
-              onChange={(e) => setPreferredTime(e.target.value)}
-              placeholder="ເຊັ່ນ: ມື້ນີ້ຕອນບ່າຍ, ພຸກນີ້ 9 ໂມງເຊົ້າ..."
-            />
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>ວັນທີ່ສະດວກໃຫ້ມາ</label>
+              <input
+                type="date"
+                style={inputStyle}
+                value={preferredDate}
+                onChange={(e) => setPreferredDate(e.target.value)}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>ເວລາທີ່ສະດວກ (24 ຊົ່ວໂມງ)</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <select
+                  style={{ ...inputStyle, flex: 1, cursor: "pointer" }}
+                  value={preferredHour}
+                  onChange={(e) => setPreferredHour(e.target.value)}
+                >
+                  <option value="">ຊມ</option>
+                  {HOUR_OPTIONS.map((h) => (
+                    <option key={h} value={h}>
+                      {h}
+                    </option>
+                  ))}
+                </select>
+                <span style={{ fontWeight: 700, color: "#4a5a56" }}>:</span>
+                <select
+                  style={{ ...inputStyle, flex: 1, cursor: "pointer" }}
+                  value={preferredMinute}
+                  onChange={(e) => setPreferredMinute(e.target.value)}
+                >
+                  <option value="">ນທ</option>
+                  {MINUTE_OPTIONS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
           <div>

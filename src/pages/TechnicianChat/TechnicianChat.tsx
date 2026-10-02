@@ -13,7 +13,7 @@ import {
   where,
 } from "firebase/firestore";
 import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
-import { ArrowLeft, Send, Camera, Image as ImageIcon, MapPin, CheckCircle2, Clock3, CalendarPlus, User, Mic, Trash2 } from "lucide-react";
+import { ArrowLeft, Send, Camera, Image as ImageIcon, MapPin, CheckCircle2, Clock3, CalendarPlus, User, Mic, Trash2, Star, X } from "lucide-react";
 import { db, storage } from "../../firebase/Firebase";
 import { techList } from "../../Types/Technician";
 import "../Chat/Chat.css";
@@ -61,15 +61,17 @@ const iconBtnStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
-function BookingCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
+function BookingCard({ msg, isMe, onOpen }: { msg: ChatMessage; isMe: boolean; onOpen: () => void }) {
   return (
     <div
+      onClick={onOpen}
       style={{
         maxWidth: 260,
         borderRadius: 14,
         overflow: "hidden",
         border: "1px solid #d7edf0",
         background: "#fff",
+        cursor: "pointer",
       }}
     >
       <div
@@ -84,15 +86,14 @@ function BookingCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
           fontWeight: 700,
         }}
       >
-        <CalendarPlus size={14} /> ຂໍ້ມູນການຈອງ
+        <CalendarPlus size={14} /> ຂໍ້ມູນການຈອງ (ກົດເບິ່ງລາຍລະອຽດ)
       </div>
       <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
         {msg.bookingPhotoUrl && (
           <img
             src={msg.bookingPhotoUrl}
             alt="ຮູບບັນຫາ"
-            style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 8, marginBottom: 4, cursor: "pointer" }}
-            onClick={() => window.open(msg.bookingPhotoUrl!, "_blank")}
+            style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 8, marginBottom: 4 }}
           />
         )}
         <div style={{ fontSize: 13, color: "#2b3a37", display: "flex", alignItems: "center", gap: 5 }}>
@@ -101,6 +102,78 @@ function BookingCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
         <div style={{ fontSize: 13, color: "#2b3a37" }}>☎ {msg.bookingPhone}</div>
         <div style={{ fontSize: 13, color: "#2b3a37" }}>📍 {msg.bookingAddress}</div>
         {msg.bookingTime && <div style={{ fontSize: 13, color: "#2b3a37" }}>🕒 {msg.bookingTime}</div>}
+      </div>
+    </div>
+  );
+}
+
+function BookingDetailModal({ msg, onClose }: { msg: ChatMessage; onClose: () => void }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.55)",
+        zIndex: 1200,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 16,
+          width: "100%",
+          maxWidth: 380,
+          maxHeight: "85vh",
+          overflowY: "auto",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "14px 16px",
+            borderBottom: "1px solid #eee",
+          }}
+        >
+          <strong style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 16 }}>
+            <CalendarPlus size={17} color="#5bb8c4" /> ລາຍລະອຽດການຈອງ
+          </strong>
+          <button onClick={onClose} style={{ border: "none", background: "transparent", cursor: "pointer" }}>
+            <X size={22} />
+          </button>
+        </div>
+
+        <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+          {msg.bookingPhotoUrl && (
+            <img
+              src={msg.bookingPhotoUrl}
+              alt="ຮູບບັນຫາ"
+              style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 10, cursor: "pointer" }}
+              onClick={() => window.open(msg.bookingPhotoUrl!, "_blank")}
+            />
+          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
+            <User size={17} color="#5bb8c4" /> {msg.bookingName}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
+            ☎ {msg.bookingPhone}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
+            📍 {msg.bookingAddress}
+          </div>
+          {msg.bookingTime && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
+              🕒 {msg.bookingTime}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -123,6 +196,12 @@ function TechnicianChat() {
   // ---- Booking state ----
   const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
   const [marking, setMarking] = useState(false);
+
+  // ---- Review state (ຣີວິວທີ່ລູກຄ້າໃຫ້ໃນ booking ນີ້) ----
+  const [review, setReview] = useState<{ rating: number; comment: string } | null>(null);
+
+  // ---- ບັດການຈອງທີ່ກຳລັງເປີດເບິ່ງລາຍລະອຽດເຕັມ ----
+  const [detailBookingMsg, setDetailBookingMsg] = useState<ChatMessage | null>(null);
 
   // ---- Voice recording state ----
   const [isRecording, setIsRecording] = useState(false);
@@ -222,6 +301,27 @@ function TechnicianChat() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // ---- ຟັງຣີວິວທີ່ລູກຄ້າໃຫ້ໄວ້ໃນ booking ນີ້ (ດອກ id ຂອງ reviews == bookingId) ----
+  useEffect(() => {
+    if (!activeBooking || activeBooking.status !== "completed") {
+      setReview(null);
+      return;
+    }
+    const unsubscribe = onSnapshot(
+      doc(db, "reviews", activeBooking.id),
+      (snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          setReview({ rating: d.rating ?? 0, comment: d.comment ?? "" });
+        } else {
+          setReview(null);
+        }
+      },
+      (err) => console.error("review fetch error:", err.message)
+    );
+    return () => unsubscribe();
+  }, [activeBooking]);
 
   const touchChatRoomMeta = async (lastMessage: string) => {
     if (!roomId) return;
@@ -582,17 +682,51 @@ function TechnicianChat() {
             <div
               style={{
                 display: "flex",
-                alignItems: "center",
+                flexDirection: "column",
                 gap: 6,
                 padding: "8px 14px",
                 background: "#eaf6f1",
                 borderBottom: "1px solid #d9ece5",
-                fontSize: 13,
-                color: "#2f7d6f",
-                fontWeight: 600,
               }}
             >
-              <CheckCircle2 size={15} /> ວຽກສຳເລັດແລ້ວ (ລູກຄ້າຢືນຢັນແລ້ວ)
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 13,
+                  color: "#2f7d6f",
+                  fontWeight: 600,
+                }}
+              >
+                <CheckCircle2 size={15} /> ວຽກສຳເລັດແລ້ວ (ລູກຄ້າຢືນຢັນແລ້ວ)
+              </span>
+              {review && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                    background: "#fff",
+                    borderRadius: 10,
+                    padding: "8px 10px",
+                  }}
+                >
+                  <div style={{ display: "flex", gap: 2 }}>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star
+                        key={i}
+                        size={14}
+                        fill={i < review.rating ? "#f5a623" : "none"}
+                        color="#f5a623"
+                      />
+                    ))}
+                  </div>
+                  {review.comment && (
+                    <p style={{ margin: 0, fontSize: 13, color: "#3a3a3a" }}>{review.comment}</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </>
@@ -608,7 +742,7 @@ function TechnicianChat() {
           return (
             <div key={msg.id} className={`chat-bubble-wrap ${isMe ? "chat-bubble-wrap--me" : ""}`}>
               {msg.type === "booking" ? (
-                <BookingCard msg={msg} isMe={isMe} />
+                <BookingCard msg={msg} isMe={isMe} onOpen={() => setDetailBookingMsg(msg)} />
               ) : msg.type === "booking_request" ? (
                 <div
                   style={{
@@ -786,6 +920,11 @@ function TechnicianChat() {
           </>
         )}
       </div>
+
+      {/* ---------------- Booking detail modal (ກົດບັດເພື່ອເບິ່ງລາຍລະອຽດເຕັມ) ---------------- */}
+      {detailBookingMsg && (
+        <BookingDetailModal msg={detailBookingMsg} onClose={() => setDetailBookingMsg(null)} />
+      )}
     </div>
   );
 }

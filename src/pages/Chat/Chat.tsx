@@ -13,7 +13,7 @@ import {
   where,
 } from "firebase/firestore";
 import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
-import { ArrowLeft, Send, Camera, Image as ImageIcon, MapPin, X, Delete, Globe, Mic, Trash2, CheckCircle2, Star, CalendarPlus, User } from "lucide-react";
+import { ArrowLeft, Send, Camera, Image as ImageIcon, MapPin, X, Mic, Trash2, CheckCircle2, Star, CalendarPlus, User } from "lucide-react";
 import { db, auth, storage } from "../../firebase/Firebase";
 import { useAuth } from "../../context/Authcontext";
 import { techList, type Technician } from "../../Types/Technician";
@@ -73,167 +73,17 @@ const iconBtnStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
-// ---------- Simple on-screen virtual keyboard (EN + Lao) ----------
-const KEY_ROWS_EN = [
-  ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
-  ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
-  ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
-  ["z", "x", "c", "v", "b", "n", "m"],
-];
-
-const KEY_ROWS_LAO = [
-  ["ກ", "ຂ", "ຄ", "ງ", "ຈ", "ສ", "ຊ", "ຍ", "ດ", "ຕ", "ຖ"],
-  ["ທ", "ນ", "ບ", "ປ", "ຜ", "ຝ", "ພ", "ຟ", "ມ", "ຢ", "ຣ"],
-  ["ລ", "ວ", "ຫ", "ອ", "ຮ", "ໜ", "ໝ", "ໆ"],
-  ["ະ", "າ", "ິ", "ີ", "ຶ", "ື", "ຸ", "ູ", "ເ", "ແ"],
-  ["ໂ", "ໃ", "ໄ", "ຳ", "່", "້", "໊", "໋", "ັ"],
-];
-
-function VirtualKeyboard({
-  onKey,
-  onBackspace,
-  onSpace,
-  onEnter,
-  onClose,
-}: {
-  onKey: (k: string) => void;
-  onBackspace: () => void;
-  onSpace: () => void;
-  onEnter: () => void;
-  onClose: () => void;
-}) {
-  const [lang, setLang] = useState<"en" | "lo">("lo");
-  const [shift, setShift] = useState(false);
-
-  const rows = lang === "en" ? KEY_ROWS_EN : KEY_ROWS_LAO;
-
-  const keyBtnStyle: React.CSSProperties = {
-    flex: 1,
-    minWidth: 0,
-    margin: 3,
-    padding: "10px 0",
-    borderRadius: 8,
-    border: "none",
-    background: "#fff",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
-    fontSize: 15,
-    cursor: "pointer",
-  };
-
-  const displayChar = (k: string) => (lang === "en" && shift ? k.toUpperCase() : k);
-
+function BookingCard({ msg, isMe, onOpen }: { msg: ChatMessage; isMe: boolean; onOpen: () => void }) {
   return (
     <div
-      style={{
-        background: "#e7ebef",
-        padding: "6px 4px 10px",
-        borderTop: "1px solid #d6dade",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "2px 6px 6px",
-        }}
-      >
-        <span style={{ fontSize: 12, color: "#666" }}>
-          ແປ້ນພິມ · {lang === "lo" ? "ລາວ" : "English"}
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          style={{ border: "none", background: "transparent", cursor: "pointer" }}
-        >
-          <X size={18} />
-        </button>
-      </div>
-
-      {rows.map((row, i) => (
-        <div key={i} style={{ display: "flex" }}>
-          {row.map((k) => (
-            <button
-              type="button"
-              key={k}
-              style={keyBtnStyle}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => onKey(displayChar(k))}
-            >
-              {displayChar(k)}
-            </button>
-          ))}
-        </div>
-      ))}
-
-      <div style={{ display: "flex" }}>
-        <button
-          type="button"
-          title="ປ່ຽນພາສາ"
-          style={{
-            ...keyBtnStyle,
-            flex: 1.4,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 4,
-            fontSize: 12,
-            fontWeight: 600,
-          }}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => setLang((l) => (l === "en" ? "lo" : "en"))}
-        >
-          <Globe size={14} />
-          {lang === "lo" ? "EN" : "ລາວ"}
-        </button>
-        {lang === "en" && (
-          <button
-            type="button"
-            style={{ ...keyBtnStyle, flex: 1.2, fontWeight: 600 }}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setShift((s) => !s)}
-          >
-            ⇧
-          </button>
-        )}
-        <button
-          type="button"
-          style={{ ...keyBtnStyle, flex: 3.5 }}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={onSpace}
-        >
-          ຊ່ອງວ່າງ
-        </button>
-        <button
-          type="button"
-          style={{ ...keyBtnStyle, flex: 1.4, display: "flex", justifyContent: "center" }}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={onBackspace}
-        >
-          <Delete size={16} />
-        </button>
-        <button
-          type="button"
-          style={{ ...keyBtnStyle, flex: 1.8, background: "#3d8983", color: "#fff", fontWeight: 600 }}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={onEnter}
-        >
-          ສົ່ງ
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function BookingCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
-  return (
-    <div
+      onClick={onOpen}
       style={{
         maxWidth: 260,
         borderRadius: 14,
         overflow: "hidden",
         border: "1px solid #dcece7",
         background: "#fff",
+        cursor: "pointer",
       }}
     >
       <div
@@ -248,15 +98,14 @@ function BookingCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
           fontWeight: 700,
         }}
       >
-        <CalendarPlus size={14} /> ຂໍ້ມູນການຈອງ
+        <CalendarPlus size={14} /> ຂໍ້ມູນການຈອງ (ກົດເບິ່ງລາຍລະອຽດ)
       </div>
       <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
         {msg.bookingPhotoUrl && (
           <img
             src={msg.bookingPhotoUrl}
             alt="ຮູບບັນຫາ"
-            style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 8, marginBottom: 4, cursor: "pointer" }}
-            onClick={() => window.open(msg.bookingPhotoUrl!, "_blank")}
+            style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 8, marginBottom: 4 }}
           />
         )}
         <div style={{ fontSize: 13, color: "#2b3a37", display: "flex", alignItems: "center", gap: 5 }}>
@@ -265,6 +114,78 @@ function BookingCard({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
         <div style={{ fontSize: 13, color: "#2b3a37" }}>☎ {msg.bookingPhone}</div>
         <div style={{ fontSize: 13, color: "#2b3a37" }}>📍 {msg.bookingAddress}</div>
         {msg.bookingTime && <div style={{ fontSize: 13, color: "#2b3a37" }}>🕒 {msg.bookingTime}</div>}
+      </div>
+    </div>
+  );
+}
+
+function BookingDetailModal({ msg, onClose }: { msg: ChatMessage; onClose: () => void }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.55)",
+        zIndex: 1200,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 16,
+          width: "100%",
+          maxWidth: 380,
+          maxHeight: "85vh",
+          overflowY: "auto",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "14px 16px",
+            borderBottom: "1px solid #eee",
+          }}
+        >
+          <strong style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 16 }}>
+            <CalendarPlus size={17} color="#3d8983" /> ລາຍລະອຽດການຈອງ
+          </strong>
+          <button onClick={onClose} style={{ border: "none", background: "transparent", cursor: "pointer" }}>
+            <X size={22} />
+          </button>
+        </div>
+
+        <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+          {msg.bookingPhotoUrl && (
+            <img
+              src={msg.bookingPhotoUrl}
+              alt="ຮູບບັນຫາ"
+              style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 10, cursor: "pointer" }}
+              onClick={() => window.open(msg.bookingPhotoUrl!, "_blank")}
+            />
+          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
+            <User size={17} color="#3d8983" /> {msg.bookingName}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
+            ☎ {msg.bookingPhone}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
+            📍 {msg.bookingAddress}
+          </div>
+          {msg.bookingTime && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
+              🕒 {msg.bookingTime}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -292,9 +213,6 @@ function Chat() {
   const audioChunksRef = useRef<Blob[]>([]);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ---- Virtual keyboard state ----
-  const [showKeyboard, setShowKeyboard] = useState(false);
-
   // ---- Map picker state ----
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [pickedPos, setPickedPos] = useState<{ lat: number; lng: number } | null>(null);
@@ -309,6 +227,23 @@ function Chat() {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [hasReview, setHasReview] = useState(false);
+  const [detailBookingMsg, setDetailBookingMsg] = useState<ChatMessage | null>(null);
+
+  // ---- ຊື່ແທ້ຂອງລູກຄ້າ (ດຶງຈາກ Firestore users/{uid}) ----
+  // ບໍ່ໃຊ້ auth.currentUser?.displayName ອີກຕໍ່ໄປ ເພາະຄ່ານັ້ນຕິດຄ້າງຢູ່ Firebase Auth
+  // session ດຽວກັນໃນ browser ນີ້ ແລະ ອາດຈະຖືກຂຽນທັບໂດຍບັນຊີອື່ນ (ເຊັ່ນ ຊ່າງ) ມາກ່ອນ
+  const [customerDisplayName, setCustomerDisplayName] = useState("ລູກຄ້າ");
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    const unsubscribe = onSnapshot(doc(db, "users", uid), (snap) => {
+      if (snap.exists()) {
+        const name = snap.data().name as string | undefined;
+        if (name && name.trim() !== "") setCustomerDisplayName(name);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const decodedPhone = decodeURIComponent(phone ?? "");
   const staticTech = techList.find((t) => t.phone === decodedPhone);
@@ -497,7 +432,7 @@ function Chat() {
       {
         techPhone: tech.phone,
         customerPhone: myId,
-        customerName: auth.currentUser?.displayName || "ລູກຄ້າ",
+        customerName: customerDisplayName,
         lastMessage,
         lastSenderId: myId,
         lastTimestamp: serverTimestamp(),
@@ -769,15 +704,6 @@ function Chat() {
     }
   };
 
-  // ---------------- Virtual keyboard handlers ----------------
-
-  const handleKeyPress = (k: string) => setText((t) => t + k);
-  const handleBackspace = () => setText((t) => t.slice(0, -1));
-  const handleSpace = () => setText((t) => t + " ");
-  const handleKeyboardEnter = () => {
-    sendMessage();
-  };
-
   if (techLoading) {
     return (
       <div className="chat-page">
@@ -866,7 +792,7 @@ function Chat() {
           return (
             <div key={msg.id} className={`chat-bubble-wrap ${isMe ? "chat-bubble-wrap--me" : ""}`}>
               {msg.type === "booking" ? (
-                <BookingCard msg={msg} isMe={isMe} />
+                <BookingCard msg={msg} isMe={isMe} onOpen={() => setDetailBookingMsg(msg)} />
               ) : msg.type === "booking_request" ? (
                 isMe ? (
                   <div
@@ -1067,7 +993,6 @@ function Chat() {
               placeholder="ພິມຂໍ້ຄວາມ..."
               value={text}
               onChange={(e) => setText(e.target.value)}
-              onFocus={() => setShowKeyboard(true)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}
             />
             <button className="chat-send" onClick={sendMessage} disabled={uploading}>
@@ -1076,16 +1001,6 @@ function Chat() {
           </>
         )}
       </div>
-
-      {showKeyboard && (
-        <VirtualKeyboard
-          onKey={handleKeyPress}
-          onBackspace={handleBackspace}
-          onSpace={handleSpace}
-          onEnter={handleKeyboardEnter}
-          onClose={() => setShowKeyboard(false)}
-        />
-      )}
 
       {/* ---------------- Location picker modal ---------------- */}
       {showMapPicker && (
@@ -1194,7 +1109,7 @@ function Chat() {
           techPhone={tech.phone}
           techName={tech.name}
           customerId={myId}
-          customerName={auth.currentUser?.displayName || "ລູກຄ້າ"}
+          customerName={customerDisplayName}
           onClose={() => setShowReviewModal(false)}
           onSaved={() => setHasReview(true)}
         />
@@ -1207,10 +1122,14 @@ function Chat() {
           techName={tech.name}
           customerId={myId}
           chatRoomId={chatRoomId}
-          defaultName={auth.currentUser?.displayName || ""}
+          defaultName={customerDisplayName !== "ລູກຄ້າ" ? customerDisplayName : ""}
           defaultPhone={customerPhone || ""}
           onClose={() => setShowBookingForm(false)}
         />
+      )}
+      {/* ---------------- Booking detail modal (ກົດບັດເພື່ອເບິ່ງລາຍລະອຽດເຕັມ) ---------------- */}
+      {detailBookingMsg && (
+        <BookingDetailModal msg={detailBookingMsg} onClose={() => setDetailBookingMsg(null)} />
       )}
     </div>
   );

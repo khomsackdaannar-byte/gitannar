@@ -88,7 +88,15 @@ function Welcome() {
         </button>
       </div>
 
-      <div className="welcome-content">
+      <div
+        className="welcome-content"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          textAlign: "center",
+        }}
+      >
         <h1 className="welcome-title">
           {t.welcome.titleLine1}
           <br />
@@ -100,6 +108,7 @@ function Welcome() {
           className="welcome-btn welcome-btn--primary"
           onClick={handleStart}
           disabled={checking}
+          style={{ width: "100%" }}
         >
           {checking ? t.welcome.checking : t.welcome.start}
         </button>
