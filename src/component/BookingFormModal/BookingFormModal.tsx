@@ -1,8 +1,45 @@
 import { useState } from "react";
 import { addDoc, collection, doc, serverTimestamp, setDoc } from "firebase/firestore";
-import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
 import { X, Camera } from "lucide-react";
-import { db, storage } from "../../firebase/Firebase";
+import { db } from "../../firebase/Firebase";
+
+// ຫຍໍ້ຮູບ ແລະ ປ່ຽນເປັນ base64 (ເກັບກົງໃນ Firestore, ບໍ່ຕ້ອງໃຊ້ Firebase Storage)
+const PHOTO_MAX_DIMENSION = 500;
+const PHOTO_JPEG_QUALITY = 0.6;
+const MAX_BASE64_LENGTH = 900_000;
+
+function resizeFileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > PHOTO_MAX_DIMENSION) {
+          height = (height * PHOTO_MAX_DIMENSION) / width;
+          width = PHOTO_MAX_DIMENSION;
+        } else if (height > PHOTO_MAX_DIMENSION) {
+          width = (width * PHOTO_MAX_DIMENSION) / height;
+          height = PHOTO_MAX_DIMENSION;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("ບໍ່ສາມາດຫຍໍ້ຮູບໄດ້"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", PHOTO_JPEG_QUALITY));
+      };
+      img.onerror = reject;
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 interface BookingFormModalProps {
   techPhone: string;
@@ -82,10 +119,14 @@ function BookingFormModal({
     try {
       let photoUrl: string | undefined;
       if (photoFile) {
-        const path = `booking-photos/${chatRoomId}/${Date.now()}_${photoFile.name}`;
-        const fileRef = storageRef(storage, path);
-        await uploadBytes(fileRef, photoFile);
-        photoUrl = await getDownloadURL(fileRef);
+        // ຫຍໍ້ຮູບ ແລະ ເກັບເປັນ base64 ກົງໃນ Firestore (ບໍ່ໃຊ້ Firebase Storage)
+        const base64 = await resizeFileToBase64(photoFile);
+        if (base64.length > MAX_BASE64_LENGTH) {
+          alert("ຮູບໃຫຍ່ເກີນໄປ ກະລຸນາເລືອກຮູບອື່ນ");
+          setSaving(false);
+          return;
+        }
+        photoUrl = base64;
       }
 
       // 1. ສ້າງ booking ໃໝ່

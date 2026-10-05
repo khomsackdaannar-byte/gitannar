@@ -12,9 +12,8 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
-import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
 import { ArrowLeft, Send, Camera, Image as ImageIcon, MapPin, CheckCircle2, Clock3, CalendarPlus, User, Mic, Trash2, Star, X } from "lucide-react";
-import { db, storage } from "../../firebase/Firebase";
+import { db } from "../../firebase/Firebase";
 import { techList } from "../../Types/Technician";
 import "../Chat/Chat.css";
 
@@ -60,6 +59,61 @@ const iconBtnStyle: React.CSSProperties = {
   cursor: "pointer",
   flexShrink: 0,
 };
+
+// ---------------- ຫຍໍ້ຮູບ ແລະ ປ່ຽນເປັນ base64 (ເກັບກົງໃນ Firestore, ບໍ່ຕ້ອງໃຊ້ Firebase Storage) ----------------
+const CHAT_IMAGE_MAX_DIMENSION = 500;
+const CHAT_IMAGE_JPEG_QUALITY = 0.6;
+
+function resizeFileToBase64(
+  file: File,
+  maxDimension = CHAT_IMAGE_MAX_DIMENSION,
+  quality = CHAT_IMAGE_JPEG_QUALITY
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDimension) {
+          height = (height * maxDimension) / width;
+          width = maxDimension;
+        } else if (height > maxDimension) {
+          width = (width * maxDimension) / height;
+          height = maxDimension;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("ບໍ່ສາມາດຫຍໍ້ຮູບໄດ້"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = reject;
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Firestore ຈຳກັດ 1 document ບໍ່ໃຫ້ເກີນ 1MB — ກັນໄວ້ບໍ່ໃຫ້ຊົນຂອບ
+const MAX_BASE64_LENGTH = 900_000;
+// ຈຳກັດຄວາມຍາວການບັນທຶກສຽງ ເພື່ອບໍ່ໃຫ້ໄຟລ໌ໃຫຍ່ເກີນໄປ
+const MAX_RECORD_SECONDS = 60;
 
 function BookingCard({ msg, isMe, onOpen }: { msg: ChatMessage; isMe: boolean; onOpen: () => void }) {
   return (
@@ -399,22 +453,24 @@ function TechnicianChat() {
 
     setUploading(true);
     try {
-      const path = `chat-images/${roomId}/${Date.now()}_${file.name}`;
-      const fileRef = storageRef(storage, path);
-      await uploadBytes(fileRef, file);
-      const url = await getDownloadURL(fileRef);
+      // ຫຍໍ້ຮູບ ແລະ ເກັບເປັນ base64 ກົງໃນ Firestore (ບໍ່ໃຊ້ Firebase Storage)
+      const base64 = await resizeFileToBase64(file);
+      if (base64.length > MAX_BASE64_LENGTH) {
+        alert("ຮູບໃຫຍ່ເກີນໄປ ກະລຸນາເລືອກຮູບອື່ນ ຫຼື ຖ່າຍໃໝ່ແບບຄວາມລະອຽດນ້ອຍກວ່າ");
+        return;
+      }
 
       const chatDocRef = doc(db, "chats", roomId);
       await addDoc(collection(chatDocRef, "messages"), {
         type: "image",
-        imageUrl: url,
+        imageUrl: base64,
         senderId: myId,
         timestamp: serverTimestamp(),
       });
       await touchChatRoomMeta("📷 ຮູບພາບ");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("ສົ່ງຮູບບໍ່ສຳເລັດ ກະລຸນາລອງໃໝ່");
+      alert("ສົ່ງຮູບບໍ່ສຳເລັດ: " + (err?.message || "ກະລຸນາລອງໃໝ່"));
     } finally {
       setUploading(false);
     }
@@ -468,26 +524,24 @@ function TechnicianChat() {
     if (!roomId) return;
     setUploading(true);
     try {
-      const path = `chat-audio/${roomId}/${Date.now()}.webm`;
-      const fileRef = storageRef(storage, path);
-      await uploadBytes(fileRef, blob);
-      const url = await getDownloadURL(fileRef);
+      // ເກັບສຽງເປັນ base64 ກົງໃນ Firestore (ບໍ່ໃຊ້ Firebase Storage)
+      const base64 = await blobToBase64(blob);
+      if (base64.length > MAX_BASE64_LENGTH) {
+        alert("ສຽງຍາວເກີນໄປ ກະລຸນາບັນທຶກສັ້ນກວ່ານີ້ (ບໍ່ເກີນ " + MAX_RECORD_SECONDS + " ວິນາທີ)");
+        return;
+      }
 
       const chatDocRef = doc(db, "chats", roomId);
       await addDoc(collection(chatDocRef, "messages"), {
         type: "audio",
-        audioUrl: url,
+        audioUrl: base64,
         senderId: myId,
         timestamp: serverTimestamp(),
       });
       await touchChatRoomMeta("🎤 ຂໍ້ຄວາມສຽງ");
     } catch (err: any) {
       console.error("Audio upload failed:", err);
-      alert(
-        "ສົ່ງສຽງບໍ່ສຳເລັດ: " +
-          (err?.code || err?.message || "ບໍ່ຮູ້ສາເຫດ") +
-          "\n\nກະລຸນາກວດ Firebase Storage rules ຫຼືເບິ່ງ console (F12)."
-      );
+      alert("ສົ່ງສຽງບໍ່ສຳເລັດ: " + (err?.message || "ບໍ່ຮູ້ສາເຫດ"));
     } finally {
       setUploading(false);
     }
@@ -512,7 +566,15 @@ function TechnicianChat() {
       mediaRecorder.start();
       setIsRecording(true);
       setRecordSeconds(0);
-      recordTimerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+      recordTimerRef.current = setInterval(() => {
+        setRecordSeconds((s) => {
+          const next = s + 1;
+          if (next >= MAX_RECORD_SECONDS) {
+            setTimeout(() => stopRecordingAndSend(), 0);
+          }
+          return next;
+        });
+      }, 1000);
     } catch (err) {
       console.error(err);
       alert("ບໍ່ສາມາດເຂົ້າເຖິງໄມໂຄຣໂຟນໄດ້ ກະລຸນາອະນຸຍາດການໃຊ້ໄມໂຄຣໂຟນ");
