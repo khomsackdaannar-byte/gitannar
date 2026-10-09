@@ -51,6 +51,8 @@ function Home() {
       collection(db, "technicians"),
       (snapshot) => {
         const docs = snapshot.docs
+          // ສະແດງສະເພາະຊ່າງທີ່ admin ອະນຸມັດແລ້ວ (ຊ່າງເກົ່າທີ່ບໍ່ມີ field status ຖືວ່າອະນຸມັດແລ້ວ)
+          .filter((d) => (d.data().status ?? "approved") === "approved")
           .map((d) => {
             const data = d.data();
             return {

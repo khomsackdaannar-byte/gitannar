@@ -15,6 +15,7 @@ import History from "../pages/History/History";
 import Profile from "../pages/Profile/Profile";
 import TechnicianRegister from "../pages/TechnicianRegister/TechnicianRegister";
 import CustomerDetail from "../pages/CustomerDetail/CustomerDetail";
+import Admin from "../pages/Admin/Admin";
 
 function AppRoutes() {
   return (
@@ -37,6 +38,9 @@ function AppRoutes() {
       <Route path="/technician-chat/:phone/:chatRoomId" element={<TechnicianChat />} />
       <Route path="/register-technician" element={<TechnicianRegister />} />
       <Route path="/technician-customer/:techPhone/:customerUid" element={<CustomerDetail />} />
+
+      {/* ຜູ້ດູແລລະບົບ (ອະນຸມັດຊ່າງ) */}
+      <Route path="/admin" element={<Admin />} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>

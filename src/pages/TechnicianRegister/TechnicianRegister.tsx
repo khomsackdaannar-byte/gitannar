@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "../../firebase/Firebase";
 import { useAuth } from "../../context/Authcontext";
 import { TechCategory, TechCategoryType } from "../../Types/Technician";
@@ -8,6 +8,51 @@ import "../Register/Register.css";
 
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 30;
+
+// ຮູບບັດຕ້ອງຍັງອ່ານອອກ ຈຶ່ງຫຍໍ້ໜ້ອຍກວ່າຮູບໂປຣໄຟລ໌ (ຍັງຕ້ອງຢູ່ໃຕ້ຂີດຈຳກັດ 1MB ຂອງ Firestore)
+const ID_CARD_MAX_DIMENSION = 900;
+const ID_CARD_QUALITIES = [0.75, 0.6, 0.45];
+const MAX_BASE64_LENGTH = 800_000;
+
+function resizeIdCardToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        const longest = Math.max(width, height);
+        if (longest > ID_CARD_MAX_DIMENSION) {
+          const scale = ID_CARD_MAX_DIMENSION / longest;
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("ບໍ່ສາມາດຫຍໍ້ຮູບໄດ້"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        // ລອງຄຸນນະພາບສູງກ່ອນ ຖ້າໄຟລ໌ຍັງໃຫຍ່ເກີນຈຶ່ງຄ່ອຍຫຼຸດລົງ
+        for (const q of ID_CARD_QUALITIES) {
+          const data = canvas.toDataURL("image/jpeg", q);
+          if (data.length <= MAX_BASE64_LENGTH) {
+            resolve(data);
+            return;
+          }
+        }
+        reject(new Error("ຮູບໃຫຍ່ເກີນໄປ ກະລຸນາຖ່າຍໃໝ່ ຫຼື ເລືອກຮູບອື່ນ"));
+      };
+      img.onerror = () => reject(new Error("ອ່ານໄຟລ໌ຮູບບໍ່ໄດ້"));
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error("ອ່ານໄຟລ໌ຮູບບໍ່ໄດ້"));
+    reader.readAsDataURL(file);
+  });
+}
 
 const categoryOptions: { value: TechCategoryType; label: string; type: string; icon: string }[] = [
   { value: TechCategory.electric, label: "ຊ່າງໄຟຟ້າ", type: "ໄຟຟ້າ", icon: "electrical_services" },
@@ -45,14 +90,15 @@ function TechnicianRegister() {
   const PROVINCE = "ນະຄອນຫຼວງວຽງຈັນ";
 
   const [idCardFile, setIdCardFile] = useState<File | null>(null);
-  const [idCardPreview, setIdCardPreview] = useState<string | null>(null);
+  // ຮູບບັດທີ່ຫຍໍ້ແລ້ວ (base64) — ໃຊ້ທັງສະແດງຕົວຢ່າງ ແລະ ເກັບລົງ Firestore
+  const [idCardBase64, setIdCardBase64] = useState<string | null>(null);
 
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
-  const { sendPhoneOtp, confirmPhoneOtp, devOtpCode } = useAuth(); // ← ແກ້ໄຂ: ເພີ່ມ devOtpCode
+  const { sendPhoneOtp, confirmPhoneOtp, devOtpCode } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -61,17 +107,30 @@ function TechnicianRegister() {
     return () => clearTimeout(t);
   }, [countdown]);
 
-  const handleIdCardChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleIdCardChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
-    setIdCardFile(file);
     setError("");
 
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => setIdCardPreview(reader.result as string);
-      reader.readAsDataURL(file);
-    } else {
-      setIdCardPreview(null);
+    if (!file) {
+      setIdCardFile(null);
+      setIdCardBase64(null);
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setError("ກະລຸນາເລືອກໄຟລ໌ຮູບພາບເທົ່ານັ້ນ");
+      e.target.value = "";
+      return;
+    }
+
+    try {
+      const base64 = await resizeIdCardToBase64(file);
+      setIdCardFile(file);
+      setIdCardBase64(base64);
+    } catch (err: any) {
+      setIdCardFile(null);
+      setIdCardBase64(null);
+      e.target.value = "";
+      setError(err?.message || "ປະມວນຜົນຮູບບໍ່ສຳເລັດ");
     }
   };
 
@@ -105,13 +164,21 @@ function TechnicianRegister() {
       setError("ກະລຸນາໃສ່ຊື່ບ້ານ");
       return;
     }
-    if (!idCardFile) {
+    if (!idCardBase64) {
       setError("ກະລຸນາແນບຮູບບັດປະຈຳຕົວ ສຳມະໂນຄົວ ຫລື ໃບຢັ້ງຢືນອາຊີບຊ່າງ");
       return;
     }
 
     setLoading(true);
     try {
+      // ກັນບໍ່ໃຫ້ລົງທະບຽນທັບເບີຂອງຊ່າງທີ່ມີຢູ່ແລ້ວ (ລວມທັງທີ່ຍັງລໍຖ້າອະນຸມັດ)
+      // ຊ່າງທີ່ຖືກປະຕິເສດ ສາມາດສະໝັກໃໝ່ໄດ້
+      const existing = await getDoc(doc(db, "technicians", phone.trim()));
+      if (existing.exists() && (existing.data().status ?? "approved") !== "rejected") {
+        setError("ເບີນີ້ລົງທະບຽນເປັນຊ່າງແລ້ວ ກະລຸນາເຂົ້າສູ່ລະບົບຊ່າງ");
+        return;
+      }
+
       await sendPhoneOtp(phone);
       setStep("otp");
       setCountdown(RESEND_SECONDS);
@@ -139,8 +206,6 @@ function TechnicianRegister() {
 
     setLoading(true);
     try {
-      // role = "technician": ບອກ Authcontext ວ່ານີ້ແມ່ນການລົງທະບຽນ "ຊ່າງ"
-      // ຈະໄດ້ບໍ່ໄປຂຽນທັບ customerPhone ຂອງລູກຄ້າ (ຖ້າ browser ດຽວກັນເຄີຍເຂົ້າສູ່ລະບົບລູກຄ້າໄວ້)
       await confirmPhoneOtp(otp, "technician");
 
       const user = auth.currentUser;
@@ -148,15 +213,17 @@ function TechnicianRegister() {
       const fullName = `${firstName.trim()} ${lastName.trim()}`;
 
       if (user) {
-        // ໝາຍເຫດ: ບໍ່ອັບເດດ displayName ຂອງ Firebase Auth ອີກຕໍ່ໄປ —
-        // uid ນີ້ແມ່ນ anonymous session ທີ່ອາດຈະຖືກໃຊ້ຮ່ວມກັນລະຫວ່າງບັນຊີລູກຄ້າ
-        // ແລະ ຊ່າງຢູ່ browser ດຽວກັນ, ການຂຽນ displayName ຢູ່ນີ້ຈະໄປຂຽນທັບ
-        // ຊື່ລູກຄ້າທີ່ເຄີຍເຂົ້າສູ່ລະບົບໄວ້ (displayName ເປັນຄ່າດຽວຕໍ່ 1 Auth user,
-        // ບໍ່ແຍກຕາມ role) — ຊື່ຊ່າງຖືກເກັບຄົບຢູ່ technicians/{phone} ຢູ່ແລ້ວ
+        // 1. ເກັບຮູບບັດໄວ້ໃນ collection ລັບ (ສະເພາະ admin ອ່ານໄດ້ ຕາມ Firestore Rules)
+        //    ບໍ່ໃສ່ໃນ technicians ເພາະ collection ນັ້ນທຸກຄົນອ່ານໄດ້
+        await setDoc(doc(db, "technicianVerifications", phone.trim()), {
+          phone: phone.trim(),
+          name: fullName,
+          idCardImage: idCardBase64,
+          idCardFileName: idCardFile ? idCardFile.name : "",
+          createdAt: new Date(),
+        });
 
-        // ໝາຍເຫດ: ບໍ່ຂຽນ users/{uid} ອີກຕໍ່ໄປ — ຂໍ້ມູນຊ່າງເກັບຄົບຢູ່ technicians/{phone} ຢູ່ແລ້ວ
-        // (ໃຊ້ເບີໂທເປັນ key, ບໍ່ອີງໃສ່ Firebase Auth uid ທີ່ອາດຈະຖືກໃຊ້ຮ່ວມກັນລະຫວ່າງ
-        // ບັນຊີລູກຄ້າ ແລະ ຊ່າງຢູ່ browser ດຽວກັນ)
+        // 2. ສ້າງໂປຣໄຟລ໌ຊ່າງ ດ້ວຍສະຖານະ "ລໍຖ້າອະນຸມັດ"
         await setDoc(doc(db, "technicians", phone.trim()), {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
@@ -167,13 +234,13 @@ function TechnicianRegister() {
           icon: selected.icon,
           area: area,
           address: `ບ້ານ${village.trim()} ${district} ${PROVINCE}`,
-          idCardFileName: idCardFile ? idCardFile.name : "",
-          idCardUrl: "",
           hometown: "",
           birthDate: birthDate.trim(),
           age: age.trim(),
           rating: 0,
           image: "",
+          status: "pending",
+          rejectReason: "",
           createdAt: new Date(),
         });
       }
@@ -181,7 +248,7 @@ function TechnicianRegister() {
       navigate(`/technician-home/${encodeURIComponent(phone.trim())}`, { replace: true });
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || "ລະຫັດ OTP ບໍ່ຖືກຕ້ອງ ຫຼື ໝົດອາຍຸແລ້ວ"); // ← ແກ້ໄຂ: ສະແດງ error ຈິງ
+      setError(err?.message || "ລະຫັດ OTP ບໍ່ຖືກຕ້ອງ ຫຼື ໝົດອາຍຸແລ້ວ");
     } finally {
       setLoading(false);
     }
@@ -323,9 +390,12 @@ function TechnicianRegister() {
                 onChange={handleIdCardChange}
                 required
               />
-              {idCardPreview && (
+              <p style={{ fontSize: 12, color: "#777", marginTop: 4 }}>
+                ຮູບນີ້ໃຊ້ກວດສອບຕົວຕົນເທົ່ານັ້ນ ແລະ ຈະເຫັນໄດ້ສະເພາະຜູ້ດູແລລະບົບ
+              </p>
+              {idCardBase64 && (
                 <img
-                  src={idCardPreview}
+                  src={idCardBase64}
                   alt="ຕົວຢ່າງບັດປະຈຳຕົວ"
                   style={{ marginTop: 8, maxWidth: "100%", borderRadius: 8 }}
                 />
@@ -343,7 +413,6 @@ function TechnicianRegister() {
         {step === "otp" && (
           <form onSubmit={handleVerify}>
             {devOtpCode && (
-              // ← ແກ້ໄຂ: ສະແດງລະຫັດ OTP ຈຳລອງເທິງໜ້າຈໍ (ໂໝດ dev/test ເທົ່ານັ້ນ)
               <p style={{ color: "#0a7", fontWeight: 600 }}>
                 (ໂໝດທົດສອບ) ລະຫັດ OTP: {devOtpCode}
               </p>

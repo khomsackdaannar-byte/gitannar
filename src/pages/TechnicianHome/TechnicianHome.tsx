@@ -13,6 +13,7 @@ interface ChatRoom {
   id: string;
   lastMessage: string;
   customerName: string;
+  customerPhone?: string;
   lastSenderId?: string;
   lastTimestamp?: { seconds: number };
   techLastRead?: { seconds: number };
@@ -167,6 +168,32 @@ function TechnicianHome() {
   const [reviewsError, setReviewsError] = useState<string | null>(null);
   const [selectedReview, setSelectedReview] = useState<Review | null>(null);
 
+  // ---- ສະຖານະການອະນຸມັດຊ່າງໂດຍ admin (ຊ່າງເກົ່າທີ່ບໍ່ມີ field ນີ້ ຖືວ່າອະນຸມັດແລ້ວ) ----
+  const [approvalStatus, setApprovalStatus] = useState<"pending" | "approved" | "rejected">("approved");
+  const [rejectReason, setRejectReason] = useState("");
+
+  // ---- ຮູບໂປຣໄຟລ໌ຂອງລູກຄ້າແຕ່ລະຄົນ (key = ເບີໂທລູກຄ້າ, value = photoURL) ----
+  // ດຶງຈາກ collection "users" ເພື່ອສະແດງຮູບແທ້ຂອງລູກຄ້າໃນລິດແຊັດ
+  const [customerPhotos, setCustomerPhotos] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "users"),
+      (snapshot) => {
+        const map: Record<string, string> = {};
+        snapshot.docs.forEach((d) => {
+          const data = d.data();
+          if (data.phone && data.photoURL) {
+            map[data.phone] = data.photoURL;
+          }
+        });
+        setCustomerPhotos(map);
+      },
+      (err) => console.error("users snapshot error:", err.message)
+    );
+    return () => unsubscribe();
+  }, []);
+
   const decodedPhone = decodeURIComponent(phone ?? "");
   const staticTech = techList.find((t) => t.phone === decodedPhone);
 
@@ -233,6 +260,8 @@ function TechnicianHome() {
         const data = snap.data();
         setPhotoURL(data.photoURL ?? null);
         setAddress(data.address ?? "");
+        setApprovalStatus((data.status ?? "approved") as "pending" | "approved" | "rejected");
+        setRejectReason(data.rejectReason ?? "");
       }
     });
     return () => unsubscribe();
@@ -254,6 +283,7 @@ function TechnicianHome() {
             id: d.id,
             lastMessage: data.lastMessage ?? "",
             customerName: data.customerName ?? "ລູກຄ້າ",
+            customerPhone: data.customerPhone ?? undefined,
             lastSenderId: data.lastSenderId ?? undefined,
             lastTimestamp: data.lastTimestamp ?? undefined,
             techLastRead: data.techLastRead ?? undefined,
@@ -383,6 +413,54 @@ function TechnicianHome() {
     );
   }
 
+  // ---- ຊ່າງທີ່ຍັງບໍ່ໄດ້ຮັບອະນຸມັດ: ສະແດງໜ້າລໍຖ້າ / ຖືກປະຕິເສດ ແທນໜ້າຫຼັກ ----
+  // (ອັບເດດອັດຕະໂນມັດທັນທີທີ່ admin ກົດອະນຸມັດ ເພາະຟັງ Firestore ແບບ real-time)
+  if (approvalStatus !== "approved") {
+    const isRejected = approvalStatus === "rejected";
+    return (
+      <div className="tech-home-page">
+        <header className="tech-home-appbar">
+          <h1>{tech.name}</h1>
+          <button className="tech-home-logout" title={t.technicianHome.logoutTitle} onClick={logout}>
+            <LogOut size={20} color="#fff" />
+          </button>
+        </header>
+        <div style={{ padding: 28, textAlign: "center" }}>
+          <div style={{ fontSize: 56, marginBottom: 12 }}>{isRejected ? "❌" : "⏳"}</div>
+          <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>
+            {isRejected ? "ການສະໝັກຖືກປະຕິເສດ" : "ກຳລັງລໍຖ້າການອະນຸມັດ"}
+          </h2>
+          <p style={{ color: "#667", fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+            {isRejected
+              ? "ຂໍ້ມູນຂອງທ່ານບໍ່ຜ່ານການກວດສອບ ທ່ານສາມາດລົງທະບຽນໃໝ່ພ້ອມຮູບບັດທີ່ຊັດເຈນໄດ້"
+              : "ຜູ້ດູແລລະບົບກຳລັງກວດສອບຂໍ້ມູນ ແລະ ຮູບບັດຂອງທ່ານ ເມື່ອອະນຸມັດແລ້ວ ໜ້ານີ້ຈະປ່ຽນເອງອັດຕະໂນມັດ"}
+          </p>
+          {isRejected && rejectReason && (
+            <p style={{ color: "#b3392f", fontSize: 14, marginTop: 12 }}>ເຫດຜົນ: {rejectReason}</p>
+          )}
+          {isRejected && (
+            <button
+              onClick={() => navigate("/register-technician")}
+              style={{
+                marginTop: 20,
+                border: "none",
+                background: "#3d8983",
+                color: "#fff",
+                borderRadius: 12,
+                padding: "11px 22px",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              ລົງທະບຽນໃໝ່
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="tech-home-page">
       <header className="tech-home-appbar">
@@ -405,6 +483,7 @@ function TechnicianHome() {
           )}
           {rooms.map((room) => {
             const unread = isUnread(room, techMyId);
+            const customerPhoto = room.customerPhone ? customerPhotos[room.customerPhone] : undefined;
             return (
               <div
                 key={room.id}
@@ -415,8 +494,16 @@ function TechnicianHome() {
                   )
                 }
               >
-                <div className="tech-home-avatar" style={{ position: "relative" }}>
-                  <User size={20} color="#fff" />
+                <div className="tech-home-avatar" style={{ position: "relative", overflow: "hidden" }}>
+                  {customerPhoto ? (
+                    <img
+                      src={customerPhoto}
+                      alt={room.customerName}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    <User size={20} color="#fff" />
+                  )}
                   {unread && (
                     <span
                       style={{

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { doc, onSnapshot } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { ArrowLeft, MapPin, Mail, User, Phone, MessageCircle } from "lucide-react";
 import { db } from "../../firebase/Firebase";
 import "../Detail/Detail.css";
@@ -44,34 +44,63 @@ function CustomerDetail() {
   // ດັ່ງນັ້ນຫ້າມນຳມາປະກອບຄືນໃໝ່ກັບ techPhone ອີກຄັ້ງ (ຈະເຮັດໃຫ້ id ຊ້ຳກັນ/ຜິດ)
   const chatRoomId = customerUid ? decodeURIComponent(customerUid) : null;
 
+  // ---- ຂັ້ນທີ 1: ດຶງຂໍ້ມູນພື້ນຖານຈາກ chat document (ຊື່, ເບີໂທ) ----
   useEffect(() => {
     if (!chatRoomId) {
       setLoading(false);
       return;
     }
 
-    // ດຶງຂໍ້ມູນລູກຄ້າຈາກ chat document ໂດຍກົງ (ບໍ່ອີງໃສ່ collection "users"
-    // ເພາະລູກຄ້າທີ່ login ຜ່ານ OTP ບໍ່ໄດ້ຖືກບັນທຶກລົງ "users")
     const unsubscribe = onSnapshot(doc(db, "chats", chatRoomId), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        setCustomer({
-          name: data.customerName ?? "ລູກຄ້າ",
+        setCustomer((prev) => ({
+          name: data.customerName ?? prev?.name ?? "ລູກຄ້າ",
           phone: data.customerPhone ?? customerUid ?? "",
-          email: undefined,
-          address: undefined,
-          photoURL: undefined,
-        });
+          email: prev?.email,
+          address: prev?.address,
+          photoURL: prev?.photoURL,
+        }));
       } else {
         // ຍັງບໍ່ມີ chat document (ຍັງບໍ່ເຄີຍແຊັດກັນ) — ໃຊ້ customerUid ຈາກ URL ແທນ
-        setCustomer(
-          customerUid ? { name: "ລູກຄ້າ", phone: customerUid } : null
+        setCustomer((prev) =>
+          customerUid ? { name: prev?.name ?? "ລູກຄ້າ", phone: customerUid } : null
         );
       }
       setLoading(false);
     });
     return () => unsubscribe();
   }, [chatRoomId, customerUid]);
+
+  // ---- ຂັ້ນທີ 2: ເອົາເບີໂທນັ້ນໄປຄົ້ນຫາຕໍ່ໃນ "users" collection ----
+  // ເພື່ອດຶງຮູບໂປຣໄຟລ໌, ອີເມວ, ທີ່ຢູ່ ແທ້ຈິງຂອງລູກຄ້າ (ຖ້າລູກຄ້າເຄີຍຕັ້ງຄ່າໂປຣໄຟລ໌ໄວ້)
+  useEffect(() => {
+    const phone = customer?.phone;
+    if (!phone) return;
+
+    const q = query(collection(db, "users"), where("phone", "==", phone));
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        if (snapshot.empty) return;
+        const data = snapshot.docs[0].data();
+        setCustomer((prev) =>
+          prev
+            ? {
+                ...prev,
+                name: data.name || prev.name,
+                email: data.email || prev.email,
+                address: data.address || prev.address,
+                photoURL: data.photoURL || prev.photoURL,
+              }
+            : prev
+        );
+      },
+      (err) => console.error("lookup customer profile by phone error:", err.message)
+    );
+    return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer?.phone]);
 
   if (loading) {
     return (
