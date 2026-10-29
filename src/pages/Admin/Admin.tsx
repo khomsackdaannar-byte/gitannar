@@ -16,6 +16,7 @@ interface TechRow {
   age: string;
   status: Status;
   rejectReason: string;
+  hasCertificate: boolean;
   createdAt: number;
 }
 
@@ -60,6 +61,7 @@ function Admin() {
   const [idImage, setIdImage] = useState<string | null>(null);
   const [idLoading, setIdLoading] = useState(false);
   const [idError, setIdError] = useState("");
+  const [certImage, setCertImage] = useState<string | null>(null);
 
   // ---- ກວດວ່າ user ທີ່ login ຢູ່ ເປັນ admin ແທ້ບໍ່ (ມີ document ໃນ admins/{uid}) ----
   useEffect(() => {
@@ -102,6 +104,7 @@ function Admin() {
               // ຊ່າງເກົ່າທີ່ບໍ່ມີ field status ຖືວ່າອະນຸມັດແລ້ວ
               status: (data.status ?? "approved") as Status,
               rejectReason: (data.rejectReason ?? "") as string,
+              hasCertificate: data.hasCertificate === true,
               createdAt: (data.createdAt?.seconds ?? 0) as number,
             } as TechRow;
           })
@@ -144,6 +147,7 @@ function Admin() {
   const openIdCard = async (row: TechRow) => {
     setViewing(row);
     setIdImage(null);
+    setCertImage(null);
     setIdError("");
     setIdLoading(true);
     try {
@@ -152,6 +156,16 @@ function Admin() {
         setIdImage(snap.data().idCardImage as string);
       } else {
         setIdError("ບໍ່ພົບຮູບບັດຂອງຊ່າງຄົນນີ້ (ອາດສະໝັກກ່ອນມີລະບົບນີ້)");
+      }
+
+      // ໃບປະກອບອາຊີບ (ມີສະເພາະຊ່າງທີ່ແນບມາ)
+      if (row.hasCertificate) {
+        const certSnap = await getDoc(
+          doc(db, "technicianVerifications", `${row.phone}_certificate`)
+        );
+        if (certSnap.exists() && certSnap.data().certificateImage) {
+          setCertImage(certSnap.data().certificateImage as string);
+        }
       }
     } catch (err: any) {
       console.error(err);
@@ -164,6 +178,7 @@ function Admin() {
   const closeIdCard = () => {
     setViewing(null);
     setIdImage(null);
+    setCertImage(null);
     setIdError("");
   };
 
@@ -374,6 +389,11 @@ function Admin() {
               </div>
               <div style={{ fontSize: 13, color: "#44504d" }}>☎ {r.phone}</div>
               {r.address && <div style={{ fontSize: 13, color: "#44504d" }}>📍 {r.address}</div>}
+              {r.hasCertificate && (
+                <div style={{ fontSize: 12.5, color: "#2f7d6f", fontWeight: 600 }}>
+                  📎 ແນບໃບປະກອບອາຊີບມານຳ
+                </div>
+              )}
               <div style={{ fontSize: 12.5, color: "#777" }}>
                 {r.birthDate && `ເກີດ ${r.birthDate}`} {r.age && `· ອາຍຸ ${r.age} ປີ`}
               </div>
@@ -494,6 +514,10 @@ function Admin() {
 
             <div style={{ padding: 12, overflow: "auto", flex: 1 }}>
               {idLoading && <p style={{ color: "#888" }}>ກຳລັງໂຫລດຮູບ...</p>}
+
+              <p style={{ margin: "0 0 6px", fontSize: 13, fontWeight: 700, color: "#44504d" }}>
+                ບັດປະຈຳຕົວ / ສຳມະໂນຄົວ
+              </p>
               {idError && <p style={{ color: "#b3392f", fontSize: 14 }}>{idError}</p>}
               {idImage && (
                 <img
@@ -501,6 +525,21 @@ function Admin() {
                   alt="ຮູບບັດ"
                   style={{ width: "100%", borderRadius: 10, display: "block" }}
                 />
+              )}
+
+              <p style={{ margin: "16px 0 6px", fontSize: 13, fontWeight: 700, color: "#44504d" }}>
+                ໃບປະກອບອາຊີບ
+              </p>
+              {certImage ? (
+                <img
+                  src={certImage}
+                  alt="ໃບປະກອບອາຊີບ"
+                  style={{ width: "100%", borderRadius: 10, display: "block" }}
+                />
+              ) : (
+                !idLoading && (
+                  <p style={{ color: "#888", fontSize: 13, margin: 0 }}>ຊ່າງບໍ່ໄດ້ແນບມາ</p>
+                )
               )}
             </div>
 

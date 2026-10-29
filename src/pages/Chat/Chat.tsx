@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   addDoc,
   collection,
@@ -58,7 +58,7 @@ interface Booking {
   createdAt?: { seconds: number };
 }
 
-// ---------------- ຫຍໍ້ຮູບ ແລະ ປ່ຽນເປັນ base64 (ເກັບກົງໃນ Firestore, ບໍ່ຕ້ອງໃຊ້ Firebase Storage) ----------------
+// ---------------- ຫຍໍ້ຮູບ ແລະ ປ່ຽນເປັນ base64 ----------------
 const CHAT_IMAGE_MAX_DIMENSION = 500;
 const CHAT_IMAGE_JPEG_QUALITY = 0.6;
 
@@ -108,9 +108,9 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
-// Firestore ຈຳກັດ 1 document ບໍ່ໃຫ້ເກີນ 1MB — ກັນໄວ້ບໍ່ໃຫ້ຊົນຂອບ
+// Firestore ຈຳກັດ 1 document ບໍ່ໃຫ້ເກີນ 1MB
 const MAX_BASE64_LENGTH = 900_000;
-// ຈຳກັດຄວາມຍາວການບັນທຶກສຽງ ເພື່ອບໍ່ໃຫ້ໄຟລ໌ໃຫຍ່ເກີນໄປ
+// ຈຳກັດຄວາມຍາວການບັນທຶກສຽງ
 const MAX_RECORD_SECONDS = 60;
 
 const iconBtnStyle: React.CSSProperties = {
@@ -122,7 +122,7 @@ const iconBtnStyle: React.CSSProperties = {
   borderRadius: "50%",
   border: "none",
   background: "transparent",
-  color: "#3d8983",
+  color: "var(--color-primary)",
   cursor: "pointer",
   flexShrink: 0,
 };
@@ -135,8 +135,8 @@ function BookingCard({ msg, isMe, onOpen }: { msg: ChatMessage; isMe: boolean; o
         maxWidth: 260,
         borderRadius: 14,
         overflow: "hidden",
-        border: "1px solid #dcece7",
-        background: "#fff",
+        border: "1px solid var(--color-border)",
+        background: "var(--color-surface)",
         cursor: "pointer",
       }}
     >
@@ -146,8 +146,8 @@ function BookingCard({ msg, isMe, onOpen }: { msg: ChatMessage; isMe: boolean; o
           alignItems: "center",
           gap: 6,
           padding: "8px 12px",
-          background: isMe ? "#3d8983" : "#eef3f2",
-          color: isMe ? "#fff" : "#2f7d6f",
+          background: isMe ? "var(--color-primary)" : "var(--color-primary-soft)",
+          color: isMe ? "#fff" : "var(--color-primary-dark)",
           fontSize: 12.5,
           fontWeight: 700,
         }}
@@ -162,12 +162,12 @@ function BookingCard({ msg, isMe, onOpen }: { msg: ChatMessage; isMe: boolean; o
             style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 8, marginBottom: 4 }}
           />
         )}
-        <div style={{ fontSize: 13, color: "#2b3a37", display: "flex", alignItems: "center", gap: 5 }}>
-          <User size={13} color="#3d8983" /> {msg.bookingName}
+        <div style={{ fontSize: 13, color: "var(--color-text)", display: "flex", alignItems: "center", gap: 5 }}>
+          <User size={13} color="var(--color-primary)" /> {msg.bookingName}
         </div>
-        <div style={{ fontSize: 13, color: "#2b3a37" }}>☎ {msg.bookingPhone}</div>
-        <div style={{ fontSize: 13, color: "#2b3a37" }}>📍 {msg.bookingAddress}</div>
-        {msg.bookingTime && <div style={{ fontSize: 13, color: "#2b3a37" }}>🕒 {msg.bookingTime}</div>}
+        <div style={{ fontSize: 13, color: "var(--color-text)" }}>☎ {msg.bookingPhone}</div>
+        <div style={{ fontSize: 13, color: "var(--color-text)" }}>📍 {msg.bookingAddress}</div>
+        {msg.bookingTime && <div style={{ fontSize: 13, color: "var(--color-text)" }}>🕒 {msg.bookingTime}</div>}
       </div>
     </div>
   );
@@ -190,7 +190,7 @@ function BookingDetailModal({ msg, onClose }: { msg: ChatMessage; onClose: () =>
     >
       <div
         style={{
-          background: "#fff",
+          background: "var(--color-surface)",
           borderRadius: 16,
           width: "100%",
           maxWidth: 380,
@@ -205,11 +205,11 @@ function BookingDetailModal({ msg, onClose }: { msg: ChatMessage; onClose: () =>
             alignItems: "center",
             justifyContent: "space-between",
             padding: "14px 16px",
-            borderBottom: "1px solid #eee",
+            borderBottom: "1px solid var(--color-border)",
           }}
         >
           <strong style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 16 }}>
-            <CalendarPlus size={17} color="#3d8983" /> ລາຍລະອຽດການຈອງ
+            <CalendarPlus size={17} color="var(--color-primary)" /> ລາຍລະອຽດການຈອງ
           </strong>
           <button onClick={onClose} style={{ border: "none", background: "transparent", cursor: "pointer" }}>
             <X size={22} />
@@ -226,7 +226,7 @@ function BookingDetailModal({ msg, onClose }: { msg: ChatMessage; onClose: () =>
             />
           )}
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
-            <User size={17} color="#3d8983" /> {msg.bookingName}
+            <User size={17} color="var(--color-primary)" /> {msg.bookingName}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
             ☎ {msg.bookingPhone}
@@ -248,7 +248,6 @@ function BookingDetailModal({ msg, onClose }: { msg: ChatMessage; onClose: () =>
 function Chat() {
   const { phone } = useParams<{ phone: string }>();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const { customerPhone } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
@@ -284,8 +283,6 @@ function Chat() {
   const [detailBookingMsg, setDetailBookingMsg] = useState<ChatMessage | null>(null);
 
   // ---- ຊື່ແທ້ຂອງລູກຄ້າ (ດຶງຈາກ Firestore users/{uid}) ----
-  // ບໍ່ໃຊ້ auth.currentUser?.displayName ອີກຕໍ່ໄປ ເພາະຄ່ານັ້ນຕິດຄ້າງຢູ່ Firebase Auth
-  // session ດຽວກັນໃນ browser ນີ້ ແລະ ອາດຈະຖືກຂຽນທັບໂດຍບັນຊີອື່ນ (ເຊັ່ນ ຊ່າງ) ມາກ່ອນ
   const [customerDisplayName, setCustomerDisplayName] = useState("ລູກຄ້າ");
   useEffect(() => {
     const uid = auth.currentUser?.uid;
@@ -417,7 +414,7 @@ function Chat() {
     return () => unsubscribe();
   }, [chatRoomId, tech, myId]);
 
-  // ---- ຟັງການຈອງ (booking) ຫຼ້າສຸດ ຂອງລູກຄ້າ-ຊ່າງຄູ່ນີ້ (ບໍ່ສ້າງອັດຕະໂນມັດອີກຕໍ່ໄປ) ----
+  // ---- ຟັງການຈອງ (booking) ຫຼ້າສຸດ ----
   useEffect(() => {
     if (!tech || myId === "anonymous") return;
 
@@ -446,16 +443,6 @@ function Chat() {
     );
     return () => unsubscribe();
   }, [tech, myId]);
-
-  // ---- ຖ້າມາຈາກໜ້າ Detail ດ້ວຍ ?book=1 ໃຫ້ເປີດແບບຟອມການຈອງອັດຕະໂນມັດ ----
-  useEffect(() => {
-    if (!bookingLoading && searchParams.get("book") === "1" && (!activeBooking || activeBooking.status === "completed")) {
-      setShowBookingForm(true);
-      searchParams.delete("book");
-      setSearchParams(searchParams, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookingLoading, activeBooking]);
 
   // ---- ເບິ່ງວ່າການຈອງນີ້ຮີວິວແລ້ວບໍ່ ----
   useEffect(() => {
@@ -495,7 +482,7 @@ function Chat() {
     );
   };
 
-  // ---- ລູກຄ້າຢືນຢັນວ່າວຽກສຳເລັດແທ້ (ຫຼັງຊ່າງກົດ "ວຽກແລ້ວ") ----
+  // ---- ລູກຄ້າຢືນຢັນວ່າວຽກສຳເລັດແທ້ ----
   const confirmBookingDone = async () => {
     if (!activeBooking) return;
     setMarking(true);
@@ -513,7 +500,6 @@ function Chat() {
     }
   };
 
-  // ---- ກົດ "ວຽກສຳເລັດແລ້ວ": ຖ້າຍັງບໍ່ໄດ້ຢືນຢັນ ໃຫ້ຢືນຢັນກ່ອນ ຈາກນັ້ນເປີດ popup ໃຫ້ຄະແນນ/ຣີວິວທັນທີ ----
   const handleJobDoneClick = async () => {
     if (!activeBooking) return;
     if (activeBooking.status !== "completed") {
@@ -521,6 +507,7 @@ function Chat() {
     }
     setShowReviewModal(true);
   };
+
   const sendMessage = async () => {
     const value = text.trim();
     if (!value || !tech || chatRoomId === "unknown") return;
@@ -544,7 +531,6 @@ function Chat() {
 
     setUploading(true);
     try {
-      // ຫຍໍ້ຮູບ ແລະ ເກັບເປັນ base64 ກົງໃນ Firestore (ບໍ່ໃຊ້ Firebase Storage)
       const base64 = await resizeFileToBase64(file);
       if (base64.length > MAX_BASE64_LENGTH) {
         alert("ຮູບໃຫຍ່ເກີນໄປ ກະລຸນາເລືອກຮູບອື່ນ ຫຼື ຖ່າຍໃໝ່ແບບຄວາມລະອຽດນ້ອຍກວ່າ");
@@ -579,7 +565,6 @@ function Chat() {
     if (!tech || chatRoomId === "unknown") return;
     setUploading(true);
     try {
-      // ເກັບສຽງເປັນ base64 ກົງໃນ Firestore (ບໍ່ໃຊ້ Firebase Storage)
       const base64 = await blobToBase64(blob);
       if (base64.length > MAX_BASE64_LENGTH) {
         alert("ສຽງຍາວເກີນໄປ ກະລຸນາບັນທຶກສັ້ນກວ່ານີ້ (ບໍ່ເກີນ " + MAX_RECORD_SECONDS + " ວິນາທີ)");
@@ -624,7 +609,6 @@ function Chat() {
       recordTimerRef.current = setInterval(() => {
         setRecordSeconds((s) => {
           const next = s + 1;
-          // ບັນທຶກຍາວເກີນທີ່ກຳນົດ -> ຢຸດ ແລະ ສົ່ງອັດຕະໂນມັດ
           if (next >= MAX_RECORD_SECONDS) {
             setTimeout(() => stopRecordingAndSend(), 0);
           }
@@ -794,7 +778,7 @@ function Chat() {
         <h1>ແຊັດກັບ {tech.name}</h1>
       </header>
 
-      {/* ---------------- Booking status bar (ອັນດຽວ, ລວມທຸກຂັ້ນຕອນ) ---------------- */}
+      {/* ---------------- Booking status bar ---------------- */}
       {!bookingLoading && activeBooking && !(activeBooking.status === "completed" && hasReview) && (
         <div
           style={{
@@ -803,8 +787,8 @@ function Chat() {
             justifyContent: "space-between",
             gap: 8,
             padding: "8px 14px",
-            background: "#eaf6f1",
-            borderBottom: "1px solid #d9ece5",
+            background: "var(--color-primary-soft)",
+            borderBottom: "1px solid var(--color-border)",
           }}
         >
           <span
@@ -813,7 +797,7 @@ function Chat() {
               alignItems: "center",
               gap: 6,
               fontSize: 12.5,
-              color: "#2f7d6f",
+              color: "var(--color-primary-dark)",
               fontWeight: 600,
             }}
           >
@@ -827,7 +811,7 @@ function Chat() {
               alignItems: "center",
               gap: 5,
               border: "none",
-              background: "#3d8983",
+              background: "var(--color-primary)",
               color: "#fff",
               borderRadius: 20,
               padding: "6px 13px",
@@ -859,7 +843,7 @@ function Chat() {
                       maxWidth: 240,
                       borderRadius: 14,
                       padding: "10px 14px",
-                      background: "#3d8983",
+                      background: "var(--color-primary)",
                       color: "#fff",
                       fontSize: 13,
                       fontWeight: 600,
@@ -876,21 +860,21 @@ function Chat() {
                       maxWidth: 260,
                       borderRadius: 14,
                       padding: "12px 14px",
-                      background: "#eef6f4",
-                      border: "1px solid #d9ece5",
+                      background: "var(--color-primary-soft)",
+                      border: "1px solid var(--color-border)",
                       display: "flex",
                       flexDirection: "column",
                       gap: 8,
                     }}
                   >
-                    <span style={{ fontSize: 13, color: "#2f7d6f", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 13, color: "var(--color-primary-dark)", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
                       <CalendarPlus size={15} /> ຊ່າງຂໍໃຫ້ທ່ານກອກຂໍ້ມູນການຈອງ
                     </span>
                     <button
                       onClick={() => setShowBookingForm(true)}
                       style={{
                         border: "none",
-                        background: "#3d8983",
+                        background: "var(--color-primary)",
                         color: "#fff",
                         borderRadius: 10,
                         padding: "8px 0",
@@ -974,7 +958,7 @@ function Chat() {
               onClick={cancelRecording}
               title="ຍົກເລີກ"
             >
-              <Trash2 size={20} color="#e05353" />
+              <Trash2 size={20} color="var(--color-danger)" />
             </button>
             <div
               style={{
@@ -983,7 +967,7 @@ function Chat() {
                 alignItems: "center",
                 justifyContent: "center",
                 gap: 8,
-                color: "#e05353",
+                color: "var(--color-danger)",
                 fontWeight: 600,
               }}
             >
@@ -992,7 +976,7 @@ function Chat() {
                   width: 10,
                   height: 10,
                   borderRadius: "50%",
-                  background: "#e05353",
+                  background: "var(--color-danger)",
                   display: "inline-block",
                   animation: "pulse 1s infinite",
                 }}
@@ -1076,7 +1060,7 @@ function Chat() {
         >
           <div
             style={{
-              background: "#fff",
+              background: "var(--color-surface)",
               borderTopLeftRadius: 16,
               borderTopRightRadius: 16,
               overflow: "hidden",
@@ -1091,7 +1075,7 @@ function Chat() {
                 alignItems: "center",
                 justifyContent: "space-between",
                 padding: "12px 16px",
-                borderBottom: "1px solid #eee",
+                borderBottom: "1px solid var(--color-border)",
               }}
             >
               <strong>ເລືອກຕໍາແໜ່ງ</strong>
@@ -1123,7 +1107,7 @@ function Chat() {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 10, padding: 12, borderTop: "1px solid #eee" }}>
+            <div style={{ display: "flex", gap: 10, padding: 12, borderTop: "1px solid var(--color-border)" }}>
               <button
                 type="button"
                 onClick={closeMapPicker}
@@ -1131,8 +1115,8 @@ function Chat() {
                   flex: 1,
                   padding: "12px 0",
                   borderRadius: 10,
-                  border: "1px solid #ccc",
-                  background: "#fff",
+                  border: "1px solid var(--color-border)",
+                  background: "var(--color-surface)",
                   cursor: "pointer",
                 }}
               >
@@ -1147,7 +1131,7 @@ function Chat() {
                   padding: "12px 0",
                   borderRadius: 10,
                   border: "none",
-                  background: "#3d8983",
+                  background: "var(--color-primary)",
                   color: "#fff",
                   fontWeight: 600,
                   cursor: "pointer",
@@ -1186,7 +1170,8 @@ function Chat() {
           onClose={() => setShowBookingForm(false)}
         />
       )}
-      {/* ---------------- Booking detail modal (ກົດບັດເພື່ອເບິ່ງລາຍລະອຽດເຕັມ) ---------------- */}
+
+      {/* ---------------- Booking detail modal ---------------- */}
       {detailBookingMsg && (
         <BookingDetailModal msg={detailBookingMsg} onClose={() => setDetailBookingMsg(null)} />
       )}

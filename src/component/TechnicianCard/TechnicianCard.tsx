@@ -2,13 +2,16 @@ import { useNavigate } from "react-router-dom";
 import { Star, Phone } from "lucide-react";
 import { getTechIcon } from "../../Utils/Icon";
 import type { Technician } from "../../Types/Technician";
-import { useBusyTechnicians } from "../../hooks/useBusyTechnicians";
 import "./TechnicianCard.css";
 
-// ທຽບເທົ່າ card ດຽວ ໃນ list ຊ່າງ
-function TechnicianCard({ tech, isBusy }: { tech: Technician; isBusy: boolean }) {
+// card ດຽວໃນລາຍການຊ່າງ
+function TechnicianCard({ tech }: { tech: Technician }) {
   const navigate = useNavigate();
   const Icon = getTechIcon(tech.icon);
+
+  // ສະຖານະ ວ່າງ/ບໍ່ວ່າງ ຂຶ້ນກັບທີ່ຊ່າງກົດເອງເທົ່ານັ້ນ
+  // (ບໍ່ມີ field available = ຖືວ່າວ່າງ)
+  const isBusy = tech.available === false;
 
   return (
     <div
@@ -55,10 +58,7 @@ function TechnicianCard({ tech, isBusy }: { tech: Technician; isBusy: boolean })
   );
 }
 
-// ທຽບເທົ່າ ListView.builder ໃນ Flutter
 export function TechnicianListView({ list }: { list: Technician[] }) {
-  const busyPhones = useBusyTechnicians();
-
   if (list.length === 0) {
     return <p className="tech-list__empty">ບໍ່ພົບຊ່າງທີ່ຄົ້ນຫາ</p>;
   }
@@ -66,11 +66,7 @@ export function TechnicianListView({ list }: { list: Technician[] }) {
   return (
     <div className="tech-list">
       {list.map((tech) => (
-        <TechnicianCard
-          key={tech.phone}
-          tech={tech}
-          isBusy={busyPhones.has(tech.phone)}
-        />
+        <TechnicianCard key={tech.phone} tech={tech} />
       ))}
     </div>
   );

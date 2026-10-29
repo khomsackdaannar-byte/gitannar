@@ -24,6 +24,14 @@ interface Review {
   customerName: string;
   rating: number;
   comment: string;
+  images: string[];
+}
+
+// ReviewModal ເກັບຮູບທີ່ລູກຄ້າແນບໄວ້ໃນ field "images" (array ຂອງ base64)
+function readReviewImages(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string" && v !== "")
+    : [];
 }
 
 type TabKey = "chat" | "profile";
@@ -74,6 +82,9 @@ function isUnread(room: ChatRoom, myId: string) {
 
 // ---------------- Review detail modal (ກົດການ໌ດເພື່ອເບິ່ງລາຍລະອຽດເຕັມ) ----------------
 function ReviewDetailModal({ review, onClose }: { review: Review; onClose: () => void }) {
+  // ຮູບທີ່ກຳລັງກົດເບິ່ງເຕັມຈໍ (null = ບໍ່ໄດ້ເປີດ)
+  const [zoomImage, setZoomImage] = useState<string | null>(null);
+
   return (
     <div
       style={{
@@ -135,10 +146,76 @@ function ReviewDetailModal({ review, onClose }: { review: Review; onClose: () =>
               {review.comment}
             </p>
           ) : (
-            <p style={{ fontSize: 14, color: "#999", margin: 0 }}>ລູກຄ້າບໍ່ໄດ້ຂຽນຄອມເມັ້ນ</p>
+            review.images.length === 0 && (
+              <p style={{ fontSize: 14, color: "#999", margin: 0 }}>ລູກຄ້າບໍ່ໄດ້ຂຽນຄອມເມັ້ນ</p>
+            )
+          )}
+
+          {review.images.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {review.images.map((src, i) => (
+                <img
+                  key={i}
+                  src={src}
+                  alt={`ຮູບຣີວິວ ${i + 1}`}
+                  onClick={() => setZoomImage(src)}
+                  style={{
+                    width: 96,
+                    height: 96,
+                    objectFit: "cover",
+                    borderRadius: 10,
+                    cursor: "pointer",
+                  }}
+                />
+              ))}
+            </div>
           )}
         </div>
       </div>
+      {zoomImage && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.9)",
+            zIndex: 1400,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 12,
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setZoomImage(null);
+          }}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setZoomImage(null);
+            }}
+            aria-label="ປິດ"
+            style={{
+              position: "absolute",
+              top: 14,
+              right: 14,
+              border: "none",
+              background: "rgba(255,255,255,0.2)",
+              borderRadius: 20,
+              padding: 6,
+              cursor: "pointer",
+            }}
+          >
+            <X size={24} color="#fff" />
+          </button>
+          <img
+            src={zoomImage}
+            alt="ຮູບຣີວິວ"
+            style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -171,6 +248,10 @@ function TechnicianHome() {
   // ---- ສະຖານະການອະນຸມັດຊ່າງໂດຍ admin (ຊ່າງເກົ່າທີ່ບໍ່ມີ field ນີ້ ຖືວ່າອະນຸມັດແລ້ວ) ----
   const [approvalStatus, setApprovalStatus] = useState<"pending" | "approved" | "rejected">("approved");
   const [rejectReason, setRejectReason] = useState("");
+
+  // ---- ປຸ່ມເປີດ/ປິດຮັບງານ (ຄ່າເລີ່ມຕົ້ນ = ວ່າງ; ຊ່າງທີ່ບໍ່ມີ field available ຖືວ່າວ່າງ) ----
+  const [available, setAvailable] = useState(true);
+  const [savingAvailable, setSavingAvailable] = useState(false);
 
   // ---- ຮູບໂປຣໄຟລ໌ຂອງລູກຄ້າແຕ່ລະຄົນ (key = ເບີໂທລູກຄ້າ, value = photoURL) ----
   // ດຶງຈາກ collection "users" ເພື່ອສະແດງຮູບແທ້ຂອງລູກຄ້າໃນລິດແຊັດ
@@ -262,6 +343,7 @@ function TechnicianHome() {
         setAddress(data.address ?? "");
         setApprovalStatus((data.status ?? "approved") as "pending" | "approved" | "rejected");
         setRejectReason(data.rejectReason ?? "");
+        setAvailable(data.available !== false);
       }
     });
     return () => unsubscribe();
@@ -315,6 +397,7 @@ function TechnicianHome() {
           customerName: d.data().customerName ?? "ລູກຄ້າ",
           rating: d.data().rating ?? 0,
           comment: d.data().comment ?? "",
+          images: readReviewImages(d.data().images),
         }));
         setReviews(docs);
         setReviewsError(null);
@@ -389,6 +472,23 @@ function TechnicianHome() {
       alert("ບັນທຶກທີ່ຢູ່ບໍ່ສຳເລັດ");
     } finally {
       setSavingAddress(false);
+    }
+  };
+
+  // ---- ເປີດ/ປິດຮັບງານ: ບັນທຶກ available ລົງ technicians/{ເບີ} ----
+  const toggleAvailable = async () => {
+    if (!tech) return;
+    const next = !available;
+    setAvailable(next); // ປ່ຽນໃນໜ້າຈໍທັນທີ
+    setSavingAvailable(true);
+    try {
+      await setDoc(doc(db, "technicians", tech.phone), { available: next }, { merge: true });
+    } catch (err) {
+      console.error(err);
+      setAvailable(!next); // ບັນທຶກບໍ່ໄດ້ ໃຫ້ກັບຄືນຄ່າເດີມ
+      alert("ປ່ຽນສະຖານະບໍ່ສຳເລັດ ກະລຸນາລອງໃໝ່");
+    } finally {
+      setSavingAvailable(false);
     }
   };
 
@@ -592,6 +692,65 @@ function TechnicianHome() {
             />
           </div>
 
+          {/* ---------------- ປຸ່ມເປີດ/ປິດຮັບງານ ---------------- */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "12px 14px",
+              background: "#fff",
+              borderRadius: 14,
+              marginBottom: 12,
+            }}
+          >
+            <div>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>ຮັບງານ</p>
+              <p
+                style={{
+                  margin: "2px 0 0",
+                  fontSize: 12,
+                  color: available ? "#2f7d6f" : "#b3392f",
+                }}
+              >
+                {available ? "ສະຖານະ: ວ່າງ" : "ສະຖານະ: ບໍ່ວ່າງ"}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={available}
+              onClick={toggleAvailable}
+              disabled={savingAvailable}
+              style={{
+                width: 52,
+                height: 30,
+                borderRadius: 15,
+                border: "none",
+                cursor: "pointer",
+                position: "relative",
+                background: available ? "#3d8983" : "#c4cbc9",
+                transition: "background .2s",
+                flexShrink: 0,
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  top: 3,
+                  left: available ? 25 : 3,
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  transition: "left .2s",
+                  boxShadow: "0 1px 3px rgba(0,0,0,.3)",
+                }}
+              />
+            </button>
+          </div>
+
           <div className="tech-home-info-card">
             <div className="tech-home-info-row">
               <Phone size={16} color="#3d8983" />
@@ -673,6 +832,18 @@ function TechnicianHome() {
                   >
                     {r.comment}
                   </p>
+                )}
+                {r.images.length > 0 && (
+                  <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                    {r.images.slice(0, 3).map((src, i) => (
+                      <img
+                        key={i}
+                        src={src}
+                        alt={`ຮູບຣີວິວ ${i + 1}`}
+                        style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }}
+                      />
+                    ))}
+                  </div>
                 )}
               </div>
             ))}

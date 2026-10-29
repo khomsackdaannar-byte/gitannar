@@ -16,33 +16,32 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   sendPhoneOtp: (phone: string) => Promise<void>;
-  // role: "customer" (default) = ນີ້ແມ່ນການເຂົ້າສູ່ລະບົບ/ລົງທະບຽນຂອງລູກຄ້າ, ຈະບັນທຶກ customerPhone
-  // role: "technician" = ແຄ່ຢືນຢັນ OTP ເພື່ອລົງທະບຽນຊ່າງ, ຈະບໍ່ແຕະ customerPhone ຂອງລູກຄ້າເລີຍ
+  // role: "customer" (default) = ການເຂົ້າສູ່ລະບົບ/ລົງທະບຽນຂອງລູກຄ້າ, ຈະບັນທຶກ customerPhone
+  // role: "technician" = ແຄ່ຢືນຢັນ OTP ເພື່ອລົງທະບຽນຊ່າງ, ຈະບໍ່ແຕະ customerPhone
   confirmPhoneOtp: (code: string, role?: "customer" | "technician") => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// ໝາຍເຫດ: ປ່ຽນຈາກ sessionStorage ເປັນ localStorage ໂດຍເຈດຕະນາ —
-// sessionStorage ແຍກກັນຄົນລະ browser tab, ຖ້າຂໍ OTP ຢູ່ tab ໜຶ່ງ
-// ແລ້ວໄປພິມຢືນຢັນຢູ່ອີກ tab ໜຶ່ງ ຈະຫາລະຫັດບໍ່ພົບ (ຂຶ້ນ error ຜິດວ່າ "ໝົດອາຍຸ")
-// localStorage ໃຊ້ຮ່ວມກັນທຸກ tab ໃນ origin ດຽວກັນ ແກ້ບັນຫານີ້ໄດ້
+// ໃຊ້ sessionStorage: ແຍກຕາມແຕ່ລະແທັບ ເພື່ອໃຫ້ຫຼາຍແທັບລັອກອິນຄົນລະບັນຊີໄດ້
+// (OTP ສະແດງເທິງໜ້າຈໍແທັບດຽວກັນຢູ່ແລ້ວ ຈຶ່ງບໍ່ຕ້ອງແບ່ງປັນຂ້າມແທັບ)
+const store = sessionStorage;
+
 const OTP_KEY = "mock_otp_code";
 const OTP_EXPIRES_KEY = "mock_otp_expires";
 const OTP_TTL_MS = 5 * 60 * 1000; // ໝົດອາຍຸໃນ 5 ນາທີ
 
 const PENDING_PHONE_KEY = "pending_phone";
 const CUSTOMER_PHONE_KEY = "customer_phone";
+const DISPLAY_NAME_KEY = "displayName";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [devOtpCode, setDevOtpCode] = useState<string | null>(
-    localStorage.getItem(OTP_KEY)
-  );
+  const [devOtpCode, setDevOtpCode] = useState<string | null>(store.getItem(OTP_KEY));
 
   const [customerPhone, setCustomerPhone] = useState<string | null>(
-    localStorage.getItem(CUSTOMER_PHONE_KEY)
+    store.getItem(CUSTOMER_PHONE_KEY)
   );
 
   useEffect(() => {
@@ -59,19 +58,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await signOut(auth);
-    localStorage.removeItem(OTP_KEY);
-    localStorage.removeItem(OTP_EXPIRES_KEY);
+    store.removeItem(OTP_KEY);
+    store.removeItem(OTP_EXPIRES_KEY);
+    store.removeItem(CUSTOMER_PHONE_KEY);
+    store.removeItem(DISPLAY_NAME_KEY);
+    setCustomerPhone(null);
     setDevOtpCode(null);
   };
 
-  // ຈຳລອງການສົ່ງ OTP — ເກັບໄວ້ໃນ localStorage ໃຊ້ຮ່ວມກັນໄດ້ທຸກ tab
+  // ຈຳລອງການສົ່ງ OTP
   const sendPhoneOtp = async (phone: string) => {
     return new Promise<void>((resolve) => {
       setTimeout(() => {
         const code = Math.floor(100000 + Math.random() * 900000).toString();
-        localStorage.setItem(OTP_KEY, code);
-        localStorage.setItem(OTP_EXPIRES_KEY, String(Date.now() + OTP_TTL_MS));
-        localStorage.setItem(PENDING_PHONE_KEY, phone);
+        store.setItem(OTP_KEY, code);
+        store.setItem(OTP_EXPIRES_KEY, String(Date.now() + OTP_TTL_MS));
+        store.setItem(PENDING_PHONE_KEY, phone);
         setDevOtpCode(code); // ສະແດງເທິງໜ້າຈໍແທນ alert()
         resolve();
       }, 500);
@@ -79,20 +81,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // ຈຳລອງການຢືນຢັນ OTP
-  // role = "customer" (default): ນີ້ແມ່ນການເຂົ້າສູ່ລະບົບ/ລົງທະບຽນຂອງ "ລູກຄ້າ" -> ບັນທຶກ customerPhone
-  // role = "technician": ແຄ່ຢືນຢັນຕົວຕົນເພື່ອລົງທະບຽນເປັນ "ຊ່າງ" -> ຫ້າມແຕະ customerPhone
-  //   (ບໍ່ດັ່ງນັ້ນ ຖ້າຊ່າງລົງທະບຽນຢູ່ browser ດຽວກັນກັບທີ່ລູກຄ້າເຄີຍເຂົ້າສູ່ລະບົບ
-  //    customerPhone ຈະຖືກຂຽນທັບເປັນເບີຂອງຊ່າງ ເຮັດໃຫ້ໜ້າລູກຄ້າໄປສະແດງຂໍ້ມູນຊ່າງແທນ)
   const confirmPhoneOtp = async (code: string, role: "customer" | "technician" = "customer") => {
-    const savedCode = localStorage.getItem(OTP_KEY);
-    const expiresAt = Number(localStorage.getItem(OTP_EXPIRES_KEY) || 0);
+    const savedCode = store.getItem(OTP_KEY);
+    const expiresAt = Number(store.getItem(OTP_EXPIRES_KEY) || 0);
 
     if (!savedCode) {
-      throw new Error("ບໍ່ພົບລະຫັດ OTP ກະລຸນາຂໍລະຫັດໃໝ່ (ຖ້າຂໍໄວ້ຄົນລະ tab ໃຫ້ພິມຢືນຢັນຢູ່ tab ດຽວກັນ)");
+      throw new Error("ບໍ່ພົບລະຫັດ OTP ກະລຸນາຂໍລະຫັດໃໝ່");
     }
     if (Date.now() > expiresAt) {
-      localStorage.removeItem(OTP_KEY);
-      localStorage.removeItem(OTP_EXPIRES_KEY);
+      store.removeItem(OTP_KEY);
+      store.removeItem(OTP_EXPIRES_KEY);
       setDevOtpCode(null);
       throw new Error("ລະຫັດ OTP ໝົດອາຍຸແລ້ວ ກະລຸນາຂໍລະຫັດໃໝ່");
     }
@@ -102,20 +100,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     await signInAnonymously(auth);
 
-    const pendingPhone = localStorage.getItem(PENDING_PHONE_KEY);
+    const pendingPhone = store.getItem(PENDING_PHONE_KEY);
 
-    // ສຳຄັນ: ບັນທຶກ customerPhone ສະເພາະຕອນເປັນການເຂົ້າສູ່ລະບົບຂອງ "ລູກຄ້າ" ເທົ່ານັ້ນ
+    // ບັນທຶກ customerPhone ສະເພາະຕອນເປັນການເຂົ້າສູ່ລະບົບຂອງ "ລູກຄ້າ" ເທົ່ານັ້ນ
     if (role === "customer" && pendingPhone) {
-      localStorage.setItem(CUSTOMER_PHONE_KEY, pendingPhone);
+      store.setItem(CUSTOMER_PHONE_KEY, pendingPhone);
       setCustomerPhone(pendingPhone);
     }
 
     if (pendingPhone) {
-      localStorage.removeItem(PENDING_PHONE_KEY);
+      store.removeItem(PENDING_PHONE_KEY);
     }
 
-    localStorage.removeItem(OTP_KEY);
-    localStorage.removeItem(OTP_EXPIRES_KEY);
+    store.removeItem(OTP_KEY);
+    store.removeItem(OTP_EXPIRES_KEY);
     setDevOtpCode(null);
   };
 

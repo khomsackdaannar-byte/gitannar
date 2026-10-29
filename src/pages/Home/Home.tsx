@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, Zap, Wrench, Scissors, Car, Smartphone, ArrowLeft, Bell, MapPin, Star, ShieldCheck, Snowflake, ChevronRight } from "lucide-react";
-import { collection, doc, onSnapshot } from "firebase/firestore";
-import { db, auth } from "../../firebase/Firebase";
+import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
+import { db } from "../../firebase/Firebase";
 import { TechCategory, TechCategoryType, techList, type Technician } from "../../Types/Technician";
 import { TechnicianListView } from "../../component/TechnicianCard/TechnicianCard";
 import { useTechnicianPhotos } from "../../hooks/useTechnicianPhotos";
 import { useLanguage } from "../../context/LanguageContext";
+import { useAuth } from "../../context/Authcontext";
 import "./Home.css";
 import BottomNav from "../../component/BottomNav/BottomNav";
 
@@ -15,6 +16,7 @@ function Home() {
   const [searchText, setSearchText] = useState("");
   const photoMap = useTechnicianPhotos();
   const { t } = useLanguage();
+  const { user, customerPhone } = useAuth();
 
   const categories: {
     category: TechCategoryType;
@@ -30,20 +32,54 @@ function Home() {
     { category: TechCategory.airRepair, label: t.home.categories.airRepair, icon: Snowflake, cls: "air_repair" },
   ];
 
-  const [displayName, setDisplayName] = useState<string>("ທ່ານ");
+  // ---------------- ຊື່ຜູ້ໃຊ້ ----------------
+  // ເກັບຕໍ່ແທັບ (sessionStorage) ເພື່ອບໍ່ໃຫ້ທັບກັນກັບແທັບອື່ນ
+  const [displayName, setDisplayName] = useState<string>(
+    () => sessionStorage.getItem("displayName") || "ທ່ານ"
+  );
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
+    const unsubs: Array<() => void> = [];
 
-    const unsubscribe = onSnapshot(doc(db, "users", uid), (snap) => {
-      const name = snap.exists() ? (snap.data().name as string) : "";
-      setDisplayName(name && name.trim() !== "" ? name : "ທ່ານ");
-    });
+    const apply = (name?: string) => {
+      if (name && name.trim() !== "") {
+        setDisplayName(name);
+        sessionStorage.setItem("displayName", name);
+      }
+      // ບໍ່ມີຊື່ -> ບໍ່ຂຽນທັບຊື່ເກົ່າດ້ວຍ "ທ່ານ"
+    };
 
-    return () => unsubscribe();
-  }, []);
+    // 1) ຊອກຕາມເບີໂທ: ຄົງທີ່ ບໍ່ປ່ຽນເມື່ອ uid (anonymous) ປ່ຽນ
+    if (customerPhone) {
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, "users"), where("phone", "==", customerPhone)),
+          (snap) => {
+            const named = snap.docs
+              .map((d) => d.data().name as string | undefined)
+              .find((n) => n && n.trim() !== "");
+            apply(named);
+          },
+          (err) => console.error("user by phone error:", err.message)
+        )
+      );
+    }
 
+    // 2) ສຳຮອງ: ຊອກຕາມ uid ປັດຈຸບັນ
+    if (user?.uid) {
+      unsubs.push(
+        onSnapshot(
+          doc(db, "users", user.uid),
+          (snap) => apply(snap.data()?.name as string | undefined),
+          (err) => console.error("user by uid error:", err.message)
+        )
+      );
+    }
+
+    return () => unsubs.forEach((u) => u());
+  }, [customerPhone, user?.uid]);
+
+  // ---------------- ລາຍຊື່ຊ່າງ ----------------
   const [registeredTechs, setRegisteredTechs] = useState<Technician[]>([]);
 
   useEffect(() => {
@@ -67,6 +103,8 @@ function Home() {
               rating: data.rating ?? 0,
               icon: data.icon ?? "electrical_services",
               image: data.image || undefined,
+              // ຊ່າງກົດເອງ: false = ບໍ່ວ່າງ (ບໍ່ມີ field ນີ້ ຖືວ່າວ່າງ)
+              available: data.available ?? true,
             } as Technician;
           })
           .filter((t) => t.name.trim() !== "");

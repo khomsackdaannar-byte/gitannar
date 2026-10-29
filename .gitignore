@@ -67,3 +67,8 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+# Build output and nested repo
+dist
+gitannar/
+.env.local

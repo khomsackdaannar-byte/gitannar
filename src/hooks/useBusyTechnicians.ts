@@ -1,40 +1,101 @@
+
 import { useEffect, useState } from "react";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  query,
+  where,
+} from "firebase/firestore";
 import { db } from "../firebase/Firebase";
 
-/**
- * ຟັງ (real-time) ວ່າຊ່າງຄົນໃດ "ບໍ່ວ່າງ" ຢູ່ - ຄືມີ booking ຄ້າງຢູ່
- * ທີ່ status ເປັນ in_progress ຫຼື pending_confirm (ຍັງບໍ່ສຳເລັດ)
- *
- * ຖ້າ techPhone ຢູ່ໃນ Set ນີ້ = ບໍ່ວ່າງ
- * ຖ້າບໍ່ຢູ່ = ວ່າງ
- */
+interface TechnicianStatus {
+  busyPhones: Set<string>;
+  unavailablePhones: Set<string>;
+}
+
 export function useBusyTechnicians() {
-  const [busyPhones, setBusyPhones] = useState<Set<string>>(new Set());
+  const [status, setStatus] = useState<TechnicianStatus>({
+    busyPhones: new Set<string>(),
+    unavailablePhones: new Set<string>(),
+  });
 
   useEffect(() => {
-    const q = query(
+    // ຟັງສະຖານະການຈອງຊ່າງ
+    const bookingQuery = query(
       collection(db, "bookings"),
-      where("status", "in", ["in_progress", "pending_confirm"])
+      where("status", "in", [
+        "in_progress",
+        "pending_confirm",
+      ])
     );
 
-    const unsubscribe = onSnapshot(
-      q,
+    const unsubscribeBookings = onSnapshot(
+      bookingQuery,
       (snapshot) => {
         const phones = new Set<string>();
-        snapshot.docs.forEach((d) => {
-          const data = d.data();
-          if (data.techPhone) phones.add(data.techPhone as string);
+
+        snapshot.docs.forEach((document) => {
+          const data = document.data();
+
+          if (data.techPhone) {
+            phones.add(String(data.techPhone));
+          }
         });
-        setBusyPhones(phones);
+
+        setStatus((previous) => ({
+          ...previous,
+          busyPhones: phones,
+        }));
       },
-      (err) => {
-        console.error("useBusyTechnicians error:", err.message);
+      (error) => {
+        console.error(
+          "Failed to listen to bookings:",
+          error
+        );
       }
     );
 
-    return () => unsubscribe();
+    // ຟັງສະຖານະວ່າງ/ບໍ່ວ່າງຂອງຊ່າງ
+    const unsubscribeTechnicians = onSnapshot(
+      collection(db, "technicians"),
+      (snapshot) => {
+        const unavailable = new Set<string>();
+
+        snapshot.docs.forEach((document) => {
+          const data = document.data();
+
+          const documentPhone = document.id;
+          const dataPhone = data.phone
+            ? String(data.phone)
+            : "";
+
+          if (data.available === false) {
+            unavailable.add(documentPhone);
+
+            if (dataPhone) {
+              unavailable.add(dataPhone);
+            }
+          }
+        });
+
+        setStatus((previous) => ({
+          ...previous,
+          unavailablePhones: unavailable,
+        }));
+      },
+      (error) => {
+        console.error(
+          "Failed to listen to technician availability:",
+          error
+        );
+      }
+    );
+
+    return () => {
+      unsubscribeBookings();
+      unsubscribeTechnicians();
+    };
   }, []);
 
-  return busyPhones;
+  return status;
 }

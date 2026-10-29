@@ -93,6 +93,10 @@ function TechnicianRegister() {
   // ຮູບບັດທີ່ຫຍໍ້ແລ້ວ (base64) — ໃຊ້ທັງສະແດງຕົວຢ່າງ ແລະ ເກັບລົງ Firestore
   const [idCardBase64, setIdCardBase64] = useState<string | null>(null);
 
+  // ໃບປະກອບອາຊີບ (ບໍ່ບັງຄັບ)
+  const [certFile, setCertFile] = useState<File | null>(null);
+  const [certBase64, setCertBase64] = useState<string | null>(null);
+
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -131,6 +135,34 @@ function TechnicianRegister() {
       setIdCardBase64(null);
       e.target.value = "";
       setError(err?.message || "ປະມວນຜົນຮູບບໍ່ສຳເລັດ");
+    }
+  };
+
+  const handleCertChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setError("");
+
+    // ບໍ່ບັງຄັບ: ຖ້າລຶບໄຟລ໌ອອກ ກໍ່ລ້າງຄ່າ
+    if (!file) {
+      setCertFile(null);
+      setCertBase64(null);
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setError("ກະລຸນາເລືອກໄຟລ໌ຮູບພາບເທົ່ານັ້ນ");
+      e.target.value = "";
+      return;
+    }
+
+    try {
+      const base64 = await resizeIdCardToBase64(file);
+      setCertFile(file);
+      setCertBase64(base64);
+    } catch (err: any) {
+      setCertFile(null);
+      setCertBase64(null);
+      e.target.value = "";
+      setError(err?.message || "ປະມວນຜົນຮູບໃບປະກອບອາຊີບບໍ່ສຳເລັດ");
     }
   };
 
@@ -223,6 +255,17 @@ function TechnicianRegister() {
           createdAt: new Date(),
         });
 
+        // 1.5 ຖ້າມີໃບປະກອບອາຊີບ ເກັບແຍກເປັນອີກ document (ເພື່ອບໍ່ໃຫ້ຂະໜາດລວມເກີນ 1MB)
+        if (certBase64) {
+          await setDoc(doc(db, "technicianVerifications", `${phone.trim()}_certificate`), {
+            phone: phone.trim(),
+            name: fullName,
+            certificateImage: certBase64,
+            certificateFileName: certFile ? certFile.name : "",
+            createdAt: new Date(),
+          });
+        }
+
         // 2. ສ້າງໂປຣໄຟລ໌ຊ່າງ ດ້ວຍສະຖານະ "ລໍຖ້າອະນຸມັດ"
         await setDoc(doc(db, "technicians", phone.trim()), {
           firstName: firstName.trim(),
@@ -239,6 +282,7 @@ function TechnicianRegister() {
           age: age.trim(),
           rating: 0,
           image: "",
+          hasCertificate: !!certBase64,
           status: "pending",
           rejectReason: "",
           createdAt: new Date(),
@@ -397,6 +441,18 @@ function TechnicianRegister() {
                 <img
                   src={idCardBase64}
                   alt="ຕົວຢ່າງບັດປະຈຳຕົວ"
+                  style={{ marginTop: 8, maxWidth: "100%", borderRadius: 8 }}
+                />
+              )}
+            </div>
+
+            <div className="form-group">
+              <label>ໃບປະກອບອາຊີບ (ຖ້າມີ)</label>
+              <input type="file" accept="image/*" onChange={handleCertChange} />
+              {certBase64 && (
+                <img
+                  src={certBase64}
+                  alt="ຕົວຢ່າງໃບປະກອບອາຊີບ"
                   style={{ marginTop: 8, maxWidth: "100%", borderRadius: 8 }}
                 />
               )}
