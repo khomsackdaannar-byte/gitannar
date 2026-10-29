@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./context/Authcontext";
 import { LanguageProvider } from "./context/LanguageContext";
